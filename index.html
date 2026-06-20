@@ -1,0 +1,823 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Forza Horizon - Open World Racing</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { overflow: hidden; background: #000; font-family: 'Segoe UI', sans-serif; }
+canvas { display: block; }
+
+#hud {
+  position: fixed; bottom: 30px; right: 30px; color: #fff;
+  text-align: right; pointer-events: none; z-index: 10;
+}
+#speedometer {
+  font-size: 72px; font-weight: 900; letter-spacing: -3px;
+  text-shadow: 0 0 30px rgba(0,150,255,0.8), 0 0 60px rgba(0,150,255,0.4);
+  line-height: 1;
+}
+#speed-unit { font-size: 18px; font-weight: 400; opacity: 0.7; letter-spacing: 2px; }
+#gear { font-size: 36px; font-weight: 700; margin-top: 5px; color: #ff6600;
+  text-shadow: 0 0 20px rgba(255,100,0,0.6); }
+#rpm-bar { width: 250px; height: 6px; background: rgba(255,255,255,0.15);
+  border-radius: 3px; margin-top: 10px; margin-left: auto; overflow: hidden; }
+#rpm-fill { height: 100%; border-radius: 3px; transition: width 0.05s, background 0.2s; }
+
+#minimap {
+  position: fixed; bottom: 30px; left: 30px; width: 160px; height: 160px;
+  border-radius: 50%; border: 2px solid rgba(255,255,255,0.3);
+  background: rgba(0,0,0,0.5); z-index: 10; overflow: hidden;
+}
+#minimap canvas { width: 100%; height: 100%; }
+
+#intro {
+  position: fixed; inset: 0; z-index: 100; display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  background: linear-gradient(135deg, #0a0a1a 0%, #1a0a2e 50%, #0a1a2e 100%);
+}
+#intro h1 {
+  font-size: 80px; font-weight: 900; letter-spacing: -2px;
+  background: linear-gradient(135deg, #ff6b00, #ff9500, #ffb700);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  text-shadow: none; margin-bottom: 10px;
+}
+#intro h2 { font-size: 28px; color: rgba(255,255,255,0.6); font-weight: 300;
+  letter-spacing: 8px; text-transform: uppercase; margin-bottom: 60px; }
+#intro .start-btn {
+  padding: 18px 60px; font-size: 20px; font-weight: 700; letter-spacing: 3px;
+  text-transform: uppercase; border: 2px solid #ff6b00; background: transparent;
+  color: #ff6b00; cursor: pointer; transition: all 0.3s;
+}
+#intro .start-btn:hover { background: #ff6b00; color: #000; }
+#intro .controls { margin-top: 40px; color: rgba(255,255,255,0.4); font-size: 14px;
+  text-align: center; line-height: 2; }
+
+#race-info {
+  position: fixed; top: 30px; left: 50%; transform: translateX(-50%);
+  color: #fff; z-index: 10; text-align: center; pointer-events: none;
+}
+#race-pos { font-size: 42px; font-weight: 900;
+  text-shadow: 0 0 20px rgba(255,100,0,0.6); }
+#race-pos span { font-size: 20px; opacity: 0.6; }
+#lap-info { font-size: 16px; opacity: 0.7; margin-top: 5px; letter-spacing: 2px; }
+
+#nitro-bar {
+  position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%);
+  width: 200px; height: 8px; background: rgba(255,255,255,0.1);
+  border-radius: 4px; z-index: 10; overflow: hidden;
+}
+#nitro-fill { height: 100%; background: linear-gradient(90deg, #00aaff, #00ffcc);
+  border-radius: 4px; width: 100%; transition: width 0.1s; }
+#nitro-label { position: fixed; bottom: 42px; left: 50%; transform: translateX(-50%);
+  color: rgba(255,255,255,0.5); font-size: 11px; letter-spacing: 3px; z-index: 10;
+  pointer-events: none; }
+
+.fade-out { animation: fadeOut 1s forwards; }
+@keyframes fadeOut { to { opacity: 0; pointer-events: none; } }
+</style>
+</head>
+<body>
+
+<div id="intro">
+  <h1>FORZA</h1>
+  <h2>Horizon</h2>
+  <button class="start-btn" onclick="startGame()">PRESS TO RACE</button>
+  <div class="controls">
+    W / ↑ — Accelerate &nbsp;&nbsp;|&nbsp;&nbsp; S / ↓ — Brake<br>
+    A / ↑ — Steer Left &nbsp;&nbsp;|&nbsp;&nbsp; D / → — Steer Right<br>
+    SPACE — Nitro Boost &nbsp;&nbsp;|&nbsp;&nbsp; C — Change Camera
+  </div>
+</div>
+
+<div id="hud" style="display:none">
+  <div id="speedometer">0</div>
+  <div id="speed-unit">KM/H</div>
+  <div id="gear">1</div>
+  <div id="rpm-bar"><div id="rpm-fill"></div></div>
+</div>
+
+<div id="race-info" style="display:none">
+  <div id="race-pos">1<span>ST</span></div>
+  <div id="lap-info">LAP 1 / 3</div>
+</div>
+
+<div id="nitro-label" style="display:none">NITRO</div>
+<div id="nitro-bar" style="display:none"><div id="nitro-fill"></div></div>
+
+<script>
+const PI = Math.PI, TAU = PI * 2;
+
+// ─── THREE.JS MINIMAL INLINE (WebGL wrapper) ───
+// We'll use raw WebGL via a tiny scene graph
+
+let canvas, gl, W, H;
+let gameStarted = false;
+let keys = {};
+let time = 0, dt = 0, lastTime = 0;
+
+// Car state
+let car = {
+  x: 0, y: 0.4, z: 0,
+  vx: 0, vz: 0,
+  speed: 0,
+  angle: 0,
+  steering: 0,
+  rpm: 0,
+  gear: 1,
+  nitro: 100,
+  nitroActive: false,
+  wheelAngle: 0,
+  tilt: 0,
+  suspension: 0,
+};
+
+// Camera
+let cam = {
+  x: 0, y: 3, z: 8,
+  mode: 0,
+  shake: 0,
+};
+
+// AI cars
+let aiCars = [];
+const AI_COUNT = 5;
+const CAR_COLORS = [
+  [1, 0.2, 0], [0, 0.5, 1], [0.1, 0.8, 0.2], [1, 1, 0], [0.8, 0, 0.8], [1, 0, 0]
+];
+
+// Road/track
+const TRACK_POINTS = [];
+const TRACK_LENGTH = 200;
+const TRACK_RADIUS = 300;
+
+function generateTrack() {
+  for (let i = 0; i <= TRACK_LENGTH; i++) {
+    let t = (i / TRACK_LENGTH) * TAU;
+    let r = TRACK_RADIUS + Math.sin(t * 3) * 80 + Math.cos(t * 5) * 40;
+    TRACK_POINTS.push({
+      x: Math.cos(t) * r,
+      z: Math.sin(t) * r,
+    });
+  }
+}
+
+function initAI() {
+  aiCars = [];
+  for (let i = 0; i < AI_COUNT; i++) {
+    let tp = Math.floor((i + 1) * TRACK_LENGTH / (AI_COUNT + 1));
+    let p = TRACK_POINTS[tp % TRACK_LENGTH];
+    aiCars.push({
+      x: p.x + (Math.random() - 0.5) * 10,
+      z: p.z + (Math.random() - 0.5) * 10,
+      y: 0.4,
+      speed: 0,
+      angle: 0,
+      trackPos: tp,
+      color: CAR_COLORS[i + 1],
+      targetSpeed: 60 + Math.random() * 40,
+      tilt: 0,
+    });
+  }
+}
+
+// ─── WebGL Setup ───
+function createShader(type, src) {
+  let s = gl.createShader(type);
+  gl.shaderSource(s, src);
+  gl.compileShader(s);
+  return s;
+}
+
+function createProgram(vs, fs) {
+  let p = gl.createProgram();
+  gl.attachShader(p, createShader(gl.VERTEX_SHADER, vs));
+  gl.attachShader(p, createShader(gl.FRAGMENT_SHADER, fs));
+  gl.linkProgram(p);
+  return p;
+}
+
+const VS = `
+attribute vec3 aPos;
+attribute vec3 aNorm;
+attribute vec3 aCol;
+uniform mat4 uMVP;
+uniform mat4 uModel;
+varying vec3 vCol;
+varying vec3 vNorm;
+varying vec3 vPos;
+void main() {
+  vCol = aCol;
+  vNorm = mat3(uModel) * aNorm;
+  vPos = (uModel * vec4(aPos, 1.0)).xyz;
+  gl_Position = uMVP * vec4(aPos, 1.0);
+}`;
+
+const FS = `
+precision mediump float;
+varying vec3 vCol;
+varying vec3 vNorm;
+varying vec3 vPos;
+uniform vec3 uSunDir;
+uniform vec3 uFogColor;
+uniform float uFogDensity;
+uniform float uTime;
+void main() {
+  vec3 n = normalize(vNorm);
+  float diff = max(dot(n, uSunDir), 0.0) * 0.7 + 0.3;
+  vec3 col = vCol * diff;
+  // fog
+  float dist = length(vPos);
+  float fog = 1.0 - exp(-dist * uFogDensity);
+  col = mix(col, uFogColor, clamp(fog, 0.0, 1.0));
+  gl_FragColor = vec4(col, 1.0);
+}`;
+
+let prog, buffers = {};
+let uMVP, uModel, uSunDir, uFogColor, uFogDensity, uTime;
+
+function initGL() {
+  canvas = document.createElement('canvas');
+  document.body.prepend(canvas);
+  gl = canvas.getContext('webgl', { antialias: true, alpha: false });
+
+  prog = createProgram(VS, FS);
+  gl.useProgram(prog);
+
+  uMVP = gl.getUniformLocation(prog, 'uMVP');
+  uModel = gl.getUniformLocation(prog, 'uModel');
+  uSunDir = gl.getUniformLocation(prog, 'uSunDir');
+  uFogColor = gl.getUniformLocation(prog, 'uFogColor');
+  uFogDensity = gl.getUniformLocation(prog, 'uFogDensity');
+  uTime = gl.getUniformLocation(prog, 'uTime');
+
+  gl.enable(gl.DEPTH_TEST);
+  gl.enable(gl.CULL_FACE);
+
+  resize();
+  window.addEventListener('resize', resize);
+}
+
+function resize() {
+  W = window.innerWidth; H = window.innerHeight;
+  canvas.width = W; canvas.height = H;
+  gl.viewport(0, 0, W, H);
+}
+
+// ─── Matrix Math ───
+function mat4() { let m = new Float32Array(16); m[0]=m[5]=m[10]=m[15]=1; return m; }
+
+function perspective(fov, aspect, near, far) {
+  let m = new Float32Array(16);
+  let f = 1 / Math.tan(fov / 2);
+  m[0] = f / aspect; m[5] = f;
+  m[10] = (far + near) / (near - far); m[11] = -1;
+  m[14] = (2 * far * near) / (near - far);
+  return m;
+}
+
+function lookAt(eye, target, up) {
+  let m = new Float32Array(16);
+  let zx = eye[0]-target[0], zy = eye[1]-target[1], zz = eye[2]-target[2];
+  let zl = Math.sqrt(zx*zx+zy*zy+zz*zz); zx/=zl; zy/=zl; zz/=zl;
+  let xx = up[1]*zz-up[2]*zy, xy = up[2]*zx-up[0]*zz, xz = up[0]*zy-up[1]*zx;
+  let xl = Math.sqrt(xx*xx+xy*xy+xz*xz); xx/=xl; xy/=xl; xz/=xl;
+  let yx = zy*xz-zz*xy, yy = zz*xx-zx*xz, yz = zx*xy-zy*xx;
+  m[0]=xx; m[1]=yx; m[2]=zx;
+  m[4]=xy; m[5]=yy; m[6]=zy;
+  m[8]=xz; m[9]=yz; m[10]=zz;
+  m[12]=-(xx*eye[0]+xy*eye[1]+xz*eye[2]);
+  m[13]=-(yx*eye[0]+yy*eye[1]+yz*eye[2]);
+  m[14]=-(zx*eye[0]+zy*eye[1]+zz*eye[2]);
+  m[15]=1;
+  return m;
+}
+
+function mulMat4(a, b) {
+  let r = new Float32Array(16);
+  for (let i=0;i<4;i++) for (let j=0;j<4;j++) {
+    r[i*4+j] = a[j]*b[i*4] + a[4+j]*b[i*4+1] + a[8+j]*b[i*4+2] + a[12+j]*b[i*4+3];
+  }
+  return r;
+}
+
+function translateMat4(m, x, y, z) {
+  let t = mat4(); t[12]=x; t[13]=y; t[14]=z;
+  return mulMat4(m, t);
+}
+
+function rotateYMat4(m, a) {
+  let r = mat4(); let c=Math.cos(a), s=Math.sin(a);
+  r[0]=c; r[2]=-s; r[8]=s; r[10]=c;
+  return mulMat4(m, r);
+}
+
+function rotateZMat4(m, a) {
+  let r = mat4(); let c=Math.cos(a), s=Math.sin(a);
+  r[0]=c; r[1]=s; r[4]=-s; r[5]=c;
+  return mulMat4(m, r);
+}
+
+function scaleMat4(m, x, y, z) {
+  let s = mat4(); s[0]=x; s[5]=y; s[10]=z;
+  return mulMat4(m, s);
+}
+
+// ─── Mesh Building ───
+class Mesh {
+  constructor() { this.verts = []; this.idx = 0; this.buf = null; }
+
+  addTri(p1,n1,c1, p2,n2,c2, p3,n3,c3) {
+    this.verts.push(...p1,...n1,...c1, ...p2,...n2,...c2, ...p3,...n3,...c3);
+  }
+
+  addQuad(p1,p2,p3,p4, col) {
+    let nx = 0, ny = 1, nz = 0;
+    // compute normal
+    let ax=p2[0]-p1[0], ay=p2[1]-p1[1], az=p2[2]-p1[2];
+    let bx=p3[0]-p1[0], by=p3[1]-p1[1], bz=p3[2]-p1[2];
+    nx=ay*bz-az*by; ny=az*bx-ax*bz; nz=ax*by-ay*bx;
+    let nl=Math.sqrt(nx*nx+ny*ny+nz*nz)||1; nx/=nl; ny/=nl; nz/=nl;
+    let n=[nx,ny,nz];
+    this.addTri(p1,n,col, p2,n,col, p3,n,col);
+    this.addTri(p1,n,col, p3,n,col, p4,n,col);
+  }
+
+  addBox(x,y,z, w,h,d, col) {
+    let x0=x-w/2, x1=x+w/2, y0=y, y1=y+h, z0=z-d/2, z1=z+d/2;
+    // top
+    this.addQuad([x0,y1,z0],[x1,y1,z0],[x1,y1,z1],[x0,y1,z1], col);
+    // bottom
+    this.addQuad([x0,y0,z1],[x1,y0,z1],[x1,y0,z0],[x0,y0,z0], col);
+    // front
+    this.addQuad([x0,y0,z1],[x0,y1,z1],[x1,y1,z1],[x1,y0,z1], col);
+    // back
+    this.addQuad([x1,y0,z0],[x1,y1,z0],[x0,y1,z0],[x0,y0,z0], col);
+    // left
+    this.addQuad([x0,y0,z0],[x0,y1,z0],[x0,y1,z1],[x0,y0,z1], col);
+    // right
+    this.addQuad([x1,y0,z1],[x1,y1,z1],[x1,y1,z0],[x1,y0,z0], col);
+  }
+
+  build() {
+    let data = new Float32Array(this.verts);
+    this.buf = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.buf);
+    gl.bufferData(gl.ARRAY_BUFFER, data, gl.STATIC_DRAW);
+    this.count = data.length / 9;
+  }
+
+  draw(model) {
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.buf);
+    let aPos = gl.getAttribLocation(prog, 'aPos');
+    let aNorm = gl.getAttribLocation(prog, 'aNorm');
+    let aCol = gl.getAttribLocation(prog, 'aCol');
+    gl.enableVertexAttribArray(aPos);
+    gl.enableVertexAttribArray(aNorm);
+    gl.enableVertexAttribArray(aCol);
+    gl.vertexAttribPointer(aPos, 3, gl.FLOAT, false, 36, 0);
+    gl.vertexAttribPointer(aNorm, 3, gl.FLOAT, false, 36, 12);
+    gl.vertexAttribPointer(aCol, 3, gl.FLOAT, false, 36, 24);
+    gl.uniformMatrix4fv(uModel, false, model);
+    let mvp = mulMat4(vpMatrix, model);
+    gl.uniformMatrix4fv(uMVP, false, mvp);
+    gl.drawArrays(gl.TRIANGLES, 0, this.count);
+  }
+}
+
+let groundMesh, carMesh, treeMesh, buildingMesh, roadMesh, mountainMesh;
+let aiCarMeshes = [];
+let vpMatrix;
+
+// Trees positions
+let trees = [];
+let buildings = [];
+
+function buildCarMesh(color) {
+  let m = new Mesh();
+  let c = color || [1, 0.15, 0];
+  let dark = [0.15, 0.15, 0.18];
+  let glass = [0.3, 0.5, 0.7];
+  let chrome = [0.7, 0.7, 0.75];
+
+  // Body lower (wider, sportier)
+  m.addBox(0, 0, 0, 2.2, 0.45, 4.8, c);
+  // Body upper (cabin, swept back)
+  m.addBox(0, 0.45, -0.3, 1.9, 0.4, 2.6, c);
+  // Windshield area
+  m.addBox(0, 0.45, 0.8, 1.7, 0.35, 0.6, glass);
+  // Rear window
+  m.addBox(0, 0.45, -1.3, 1.7, 0.3, 0.5, glass);
+  // Hood (front low section)
+  m.addBox(0, 0.35, 1.8, 2.0, 0.15, 1.2, c);
+  // Rear spoiler
+  m.addBox(0, 0.85, -2.2, 1.8, 0.06, 0.3, dark);
+  m.addBox(-0.7, 0.55, -2.1, 0.08, 0.3, 0.08, dark);
+  m.addBox(0.7, 0.55, -2.1, 0.08, 0.3, 0.08, dark);
+  // Front splitter
+  m.addBox(0, 0.05, 2.45, 2.0, 0.08, 0.15, dark);
+  // Side skirts
+  m.addBox(-1.1, 0.05, 0, 0.1, 0.15, 4.4, dark);
+  m.addBox(1.1, 0.05, 0, 0.1, 0.15, 4.4, dark);
+  // Headlights
+  m.addBox(-0.7, 0.3, 2.42, 0.4, 0.12, 0.05, [1,1,0.9]);
+  m.addBox(0.7, 0.3, 2.42, 0.4, 0.12, 0.05, [1,1,0.9]);
+  // Taillights
+  m.addBox(-0.8, 0.3, -2.42, 0.35, 0.1, 0.05, [1,0,0]);
+  m.addBox(0.8, 0.3, -2.42, 0.35, 0.1, 0.05, [1,0,0]);
+  // Wheels (dark boxes as placeholders)
+  m.addBox(-1.0, 0.0, 1.5, 0.35, 0.35, 0.35, [0.1,0.1,0.1]);
+  m.addBox(1.0, 0.0, 1.5, 0.35, 0.35, 0.35, [0.1,0.1,0.1]);
+  m.addBox(-1.0, 0.0, -1.5, 0.35, 0.35, 0.35, [0.1,0.1,0.1]);
+  m.addBox(1.0, 0.0, -1.5, 0.35, 0.35, 0.35, [0.1,0.1,0.1]);
+  // Exhaust
+  m.addBox(-0.4, 0.12, -2.5, 0.15, 0.12, 0.15, chrome);
+  m.addBox(0.4, 0.12, -2.5, 0.15, 0.12, 0.15, chrome);
+
+  m.build();
+  return m;
+}
+
+function buildWorld() {
+  // Ground
+  groundMesh = new Mesh();
+  let gs = 1500;
+  for (let x = -gs; x < gs; x += 60) {
+    for (let z = -gs; z < gs; z += 60) {
+      let g1 = 0.18 + Math.random()*0.06;
+      let g2 = 0.35 + Math.random()*0.08;
+      let col = [g1, g2, g1 * 0.5];
+      groundMesh.addQuad(
+        [x, 0, z], [x+60, 0, z], [x+60, 0, z+60], [x, 0, z+60], col
+      );
+    }
+  }
+  groundMesh.build();
+
+  // Road along track
+  roadMesh = new Mesh();
+  let roadW = 14;
+  for (let i = 0; i < TRACK_POINTS.length - 1; i++) {
+    let p1 = TRACK_POINTS[i], p2 = TRACK_POINTS[(i+1) % TRACK_POINTS.length];
+    let dx = p2.x - p1.x, dz = p2.z - p1.z;
+    let l = Math.sqrt(dx*dx + dz*dz) || 1;
+    let nx = -dz/l * roadW/2, nz = dx/l * roadW/2;
+
+    let isStripe = i % 10 < 2;
+    let col = isStripe ? [0.25, 0.25, 0.28] : [0.18, 0.18, 0.2];
+
+    roadMesh.addQuad(
+      [p1.x+nx, 0.02, p1.z+nz],
+      [p1.x-nx, 0.02, p1.z-nz],
+      [p2.x-nx, 0.02, p2.z-nz],
+      [p2.x+nx, 0.02, p2.z+nz],
+      col
+    );
+    // Road edges (curbs)
+    let cw = 0.8;
+    let curbCol = i % 6 < 3 ? [0.8,0.1,0.1] : [1,1,1];
+    roadMesh.addQuad(
+      [p1.x+nx, 0.03, p1.z+nz],
+      [p1.x+nx+(-dz/l)*cw, 0.03, p1.z+nz+(dx/l)*cw],
+      [p2.x+nx+(-dz/l)*cw, 0.03, p2.z+nz+(dx/l)*cw],
+      [p2.x+nx, 0.03, p2.z+nz],
+      curbCol
+    );
+    roadMesh.addQuad(
+      [p1.x-nx-(-dz/l)*cw, 0.03, p1.z-nz-(dx/l)*cw],
+      [p1.x-nx, 0.03, p1.z-nz],
+      [p2.x-nx, 0.03, p2.z-nz],
+      [p2.x-nx-(-dz/l)*cw, 0.03, p2.z-nz-(dx/l)*cw],
+      curbCol
+    );
+  }
+  roadMesh.build();
+
+  // Player car
+  carMesh = buildCarMesh([1, 0.15, 0]);
+
+  // AI cars
+  aiCarMeshes = [];
+  for (let i = 0; i < AI_COUNT; i++) {
+    aiCarMeshes.push(buildCarMesh(CAR_COLORS[i + 1]));
+  }
+
+  // Trees
+  treeMesh = new Mesh();
+  for (let i = 0; i < 600; i++) {
+    let angle = Math.random() * TAU;
+    let dist = 100 + Math.random() * 1200;
+    let tx = Math.cos(angle) * dist;
+    let tz = Math.sin(angle) * dist;
+
+    // Check not too close to road
+    let onRoad = false;
+    for (let j = 0; j < TRACK_POINTS.length; j += 5) {
+      let dx = tx - TRACK_POINTS[j].x, dz = tz - TRACK_POINTS[j].z;
+      if (dx*dx + dz*dz < 400) { onRoad = true; break; }
+    }
+    if (onRoad) continue;
+
+    let h = 4 + Math.random() * 8;
+    let trunkCol = [0.3, 0.2, 0.1];
+    let leafCol = [0.05 + Math.random()*0.1, 0.3 + Math.random()*0.3, 0.05];
+
+    treeMesh.addBox(tx, 0, tz, 0.4, h, 0.4, trunkCol);
+    treeMesh.addBox(tx, h, tz, 3 + Math.random()*2, 4 + Math.random()*3, 3 + Math.random()*2, leafCol);
+
+    trees.push({x: tx, z: tz, r: 1.5});
+  }
+  treeMesh.build();
+
+  // Mountains (distant)
+  mountainMesh = new Mesh();
+  for (let i = 0; i < 40; i++) {
+    let angle = (i / 40) * TAU;
+    let dist = 1200 + Math.random() * 300;
+    let mx = Math.cos(angle) * dist;
+    let mz = Math.sin(angle) * dist;
+    let mh = 60 + Math.random() * 120;
+    let mw = 40 + Math.random() * 60;
+    let shade = 0.25 + Math.random() * 0.15;
+    let col = [shade, shade + 0.05, shade + 0.1];
+    mountainMesh.addBox(mx, 0, mz, mw, mh, mw, col);
+  }
+  mountainMesh.build();
+
+  // Buildings near track
+  buildingMesh = new Mesh();
+  for (let i = 0; i < 40; i++) {
+    let ti = Math.floor(Math.random() * TRACK_POINTS.length);
+    let tp = TRACK_POINTS[ti];
+    let side = Math.random() > 0.5 ? 1 : -1;
+    let offset = 25 + Math.random() * 30;
+    let tn = ti + 1 < TRACK_POINTS.length ? ti + 1 : 0;
+    let dx = TRACK_POINTS[tn].x - tp.x, dz = TRACK_POINTS[tn].z - tp.z;
+    let dl = Math.sqrt(dx*dx+dz*dz) || 1;
+    let bx = tp.x + (-dz/dl) * offset * side;
+    let bz = tp.z + (dx/dl) * offset * side;
+    let bh = 8 + Math.random() * 25;
+    let bw = 5 + Math.random() * 8;
+    let shade = 0.4 + Math.random() * 0.3;
+    buildingMesh.addBox(bx, 0, bz, bw, bh, bw, [shade, shade*0.95, shade*0.9]);
+    // Windows
+    for (let wy = 3; wy < bh - 2; wy += 3) {
+      let wc = Math.random() > 0.3 ? [0.9, 0.85, 0.4] : [0.2, 0.25, 0.3];
+      buildingMesh.addBox(bx, wy, bz + bw/2 + 0.05, bw * 0.6, 1.2, 0.05, wc);
+      buildingMesh.addBox(bx, wy, bz - bw/2 - 0.05, bw * 0.6, 1.2, 0.05, wc);
+    }
+    buildings.push({x: bx, z: bz, r: bw/2 + 1});
+  }
+  buildingMesh.build();
+
+  // Set initial car position on track
+  car.x = TRACK_POINTS[0].x;
+  car.z = TRACK_POINTS[0].z;
+  let dx = TRACK_POINTS[1].x - TRACK_POINTS[0].x;
+  let dz = TRACK_POINTS[1].z - TRACK_POINTS[0].z;
+  car.angle = Math.atan2(dx, dz);
+}
+
+// ─── Game Logic ───
+function updateCar(dt) {
+  let accel = 0;
+  let steerInput = 0;
+  let braking = false;
+
+  if (keys['w'] || keys['arrowup']) accel = 1;
+  if (keys['s'] || keys['arrowdown']) { accel = -0.5; braking = true; }
+  if (keys['a'] || keys['arrowleft']) steerInput = 1;
+  if (keys['d'] || keys['arrowright']) steerInput = -1;
+
+  car.nitroActive = keys[' '] && car.nitro > 0;
+  if (car.nitroActive) {
+    accel += 0.6;
+    car.nitro = Math.max(0, car.nitro - 30 * dt);
+  } else {
+    car.nitro = Math.min(100, car.nitro + 5 * dt);
+  }
+
+  let maxSpeed = 220;
+  if (car.nitroActive) maxSpeed = 300;
+
+  let engineForce = accel * 120;
+  let drag = -0.4 * car.speed * Math.abs(car.speed) * 0.001;
+  let friction = -car.speed * 2;
+
+  car.speed += (engineForce + drag + friction) * dt;
+  car.speed = Math.max(-40, Math.min(maxSpeed, car.speed));
+
+  if (braking && car.speed > 0) car.speed -= 80 * dt;
+
+  let steerFactor = 2.2 / (1 + Math.abs(car.speed) * 0.012);
+  car.steering += (steerInput * steerFactor - car.steering) * dt * 8;
+  car.angle += car.steering * dt * (car.speed > 0 ? 1 : car.speed < 0 ? -1 : 0);
+
+  car.tilt += (car.steering * car.speed * 0.0003 - car.tilt) * dt * 5;
+  car.suspension = Math.sin(time * 15) * Math.abs(car.speed) * 0.00005;
+
+  car.vx = Math.sin(car.angle) * car.speed * 0.06;
+  car.vz = Math.cos(car.angle) * car.speed * 0.06;
+  car.x += car.vx * dt * 16;
+  car.z += car.vz * dt * 16;
+
+  // RPM and gear
+  let absSpeed = Math.abs(car.speed);
+  car.gear = absSpeed < 30 ? 1 : absSpeed < 60 ? 2 : absSpeed < 100 ? 3 :
+             absSpeed < 150 ? 4 : absSpeed < 200 ? 5 : 6;
+  let gearRanges = [0,30,60,100,150,200,300];
+  let low = gearRanges[car.gear-1], high = gearRanges[car.gear];
+  car.rpm = ((absSpeed - low) / (high - low)) * 7000 + 1000;
+  car.rpm = Math.min(8000, Math.max(800, car.rpm));
+
+  // Collision with trees/buildings
+  [...trees, ...buildings].forEach(obj => {
+    let dx = car.x - obj.x, dz = car.z - obj.z;
+    let dist = Math.sqrt(dx*dx + dz*dz);
+    if (dist < obj.r + 1.2) {
+      let push = (obj.r + 1.2 - dist);
+      car.x += (dx/dist) * push;
+      car.z += (dz/dist) * push;
+      car.speed *= 0.5;
+    }
+  });
+
+  cam.shake = Math.abs(car.speed) * 0.0002 + (car.nitroActive ? 0.02 : 0);
+}
+
+function updateAI(dt) {
+  aiCars.forEach(ai => {
+    ai.trackPos += ai.speed * 0.003 * dt * 16;
+    if (ai.trackPos >= TRACK_POINTS.length) ai.trackPos -= TRACK_POINTS.length;
+
+    let ti = Math.floor(ai.trackPos) % TRACK_POINTS.length;
+    let tn = (ti + 3) % TRACK_POINTS.length;
+    let target = TRACK_POINTS[tn];
+
+    let dx = target.x - ai.x, dz = target.z - ai.z;
+    let targetAngle = Math.atan2(dx, dz);
+
+    let angleDiff = targetAngle - ai.angle;
+    while (angleDiff > PI) angleDiff -= TAU;
+    while (angleDiff < -PI) angleDiff += TAU;
+    ai.angle += angleDiff * dt * 3;
+
+    ai.speed += (ai.targetSpeed - ai.speed) * dt * 2;
+    ai.tilt = angleDiff * ai.speed * 0.003;
+
+    ai.x += Math.sin(ai.angle) * ai.speed * 0.06 * dt * 16;
+    ai.z += Math.cos(ai.angle) * ai.speed * 0.06 * dt * 16;
+  });
+}
+
+function updateCamera() {
+  let targetBehind = 8 + Math.abs(car.speed) * 0.015;
+  let targetHeight = 3 + Math.abs(car.speed) * 0.005;
+
+  let modes = [
+    { behind: targetBehind, height: targetHeight, lookHeight: 1.5 }, // chase
+    { behind: 0.1, height: 1.2, lookHeight: 1.2 }, // hood
+    { behind: 15, height: 8, lookHeight: 0 }, // far chase
+  ];
+
+  let m = modes[cam.mode % modes.length];
+
+  let tx = car.x - Math.sin(car.angle) * m.behind;
+  let tz = car.z - Math.cos(car.angle) * m.behind;
+  let ty = m.height;
+
+  cam.x += (tx - cam.x) * 0.06;
+  cam.y += (ty - cam.y) * 0.06;
+  cam.z += (tz - cam.z) * 0.06;
+
+  let sx = (Math.random()-0.5) * cam.shake;
+  let sy = (Math.random()-0.5) * cam.shake;
+
+  let lookX = car.x + Math.sin(car.angle) * 5;
+  let lookZ = car.z + Math.cos(car.angle) * 5;
+
+  let view = lookAt(
+    [cam.x + sx, cam.y + sy, cam.z],
+    [lookX, m.lookHeight, lookZ],
+    [0, 1, 0]
+  );
+  let proj = perspective(1.0 + Math.abs(car.speed) * 0.001, W/H, 0.5, 3000);
+  vpMatrix = mulMat4(proj, view);
+}
+
+// ─── Render ───
+function render() {
+  // Sky gradient via clear color (changes with time of day)
+  let skyPhase = Math.sin(time * 0.02) * 0.5 + 0.5;
+  let skyR = 0.4 + skyPhase * 0.2;
+  let skyG = 0.55 + skyPhase * 0.15;
+  let skyB = 0.8 + skyPhase * 0.1;
+
+  // Sunset tones
+  let sunset = Math.max(0, Math.sin(time * 0.015));
+  skyR += sunset * 0.3;
+  skyG += sunset * 0.1;
+
+  gl.clearColor(skyR, skyG, skyB, 1);
+  gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+  let sunAngle = time * 0.02;
+  let sunDir = [Math.cos(sunAngle) * 0.5, 0.8, Math.sin(sunAngle) * 0.5];
+  let sl = Math.sqrt(sunDir[0]**2+sunDir[1]**2+sunDir[2]**2);
+  sunDir = sunDir.map(v=>v/sl);
+
+  gl.uniform3fv(uSunDir, sunDir);
+  gl.uniform3fv(uFogColor, [skyR, skyG, skyB]);
+  gl.uniform1f(uFogDensity, 0.0012);
+  gl.uniform1f(uTime, time);
+
+  let identity = mat4();
+
+  groundMesh.draw(identity);
+  roadMesh.draw(identity);
+  treeMesh.draw(identity);
+  buildingMesh.draw(identity);
+  mountainMesh.draw(identity);
+
+  // Player car
+  let carModel = mat4();
+  carModel = translateMat4(carModel, car.x, car.y + car.suspension, car.z);
+  carModel = rotateYMat4(carModel, car.angle);
+  carModel = rotateZMat4(carModel, car.tilt);
+  carModel = scaleMat4(carModel, 0.5, 0.5, 0.5);
+  carMesh.draw(carModel);
+
+  // AI cars
+  aiCars.forEach((ai, i) => {
+    let m = mat4();
+    m = translateMat4(m, ai.x, ai.y, ai.z);
+    m = rotateYMat4(m, ai.angle);
+    m = rotateZMat4(m, ai.tilt);
+    m = scaleMat4(m, 0.5, 0.5, 0.5);
+    aiCarMeshes[i].draw(m);
+  });
+}
+
+// ─── HUD ───
+function updateHUD() {
+  let spd = Math.abs(Math.round(car.speed));
+  document.getElementById('speedometer').textContent = spd;
+  document.getElementById('gear').textContent = car.gear;
+
+  let rpmPct = ((car.rpm - 800) / 7200) * 100;
+  let rpmFill = document.getElementById('rpm-fill');
+  rpmFill.style.width = rpmPct + '%';
+  rpmFill.style.background = rpmPct > 85 ? '#ff2222' : rpmPct > 60 ?
+    'linear-gradient(90deg, #0088ff, #ff4400)' : '#0088ff';
+
+  document.getElementById('nitro-fill').style.width = car.nitro + '%';
+}
+
+// ─── Main Loop ───
+function gameLoop(timestamp) {
+  if (!gameStarted) return;
+
+  if (!lastTime) lastTime = timestamp;
+  dt = Math.min((timestamp - lastTime) / 1000, 0.05);
+  lastTime = timestamp;
+  time += dt;
+
+  updateCar(dt);
+  updateAI(dt);
+  updateCamera();
+  render();
+  updateHUD();
+
+  requestAnimationFrame(gameLoop);
+}
+
+function startGame() {
+  document.getElementById('intro').classList.add('fade-out');
+  document.getElementById('hud').style.display = 'block';
+  document.getElementById('race-info').style.display = 'block';
+  document.getElementById('nitro-bar').style.display = 'block';
+  document.getElementById('nitro-label').style.display = 'block';
+
+  gameStarted = true;
+  lastTime = 0;
+  requestAnimationFrame(gameLoop);
+}
+
+// ─── Input ───
+document.addEventListener('keydown', e => {
+  keys[e.key.toLowerCase()] = true;
+  if (e.key.toLowerCase() === 'c') {
+    cam.mode = (cam.mode + 1) % 3;
+  }
+});
+document.addEventListener('keyup', e => { keys[e.key.toLowerCase()] = false; });
+
+// ─── Init ───
+initGL();
+generateTrack();
+buildWorld();
+initAI();
+</script>
+</body>
+</html>
