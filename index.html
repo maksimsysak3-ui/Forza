@@ -165,7 +165,7 @@ let camMode = 0;
 let playing = false;
 
 const P = {
-  pos: new THREE.Vector3(0, ROAD_Y + 0.30, 20),
+  pos: new THREE.Vector3(0, ROAD_Y, 20),
   vel: new THREE.Vector3(0,0,0),
   head: 0, angVel: 0,
   rpm: 800, gear: 1, speed: 0,
@@ -933,7 +933,7 @@ function buildCar(){
   bGeo.setAttribute('color', new THREE.Float32BufferAttribute(M.body.c, 3));
   bGeo.setIndex(M.body.i);
   bGeo.computeVertexNormals();
-  const bodyMesh = new THREE.Mesh(bGeo, new THREE.MeshLambertMaterial({vertexColors:true, flatShading:true}));
+  const bodyMesh = new THREE.Mesh(bGeo, new THREE.MeshLambertMaterial({vertexColors:true, flatShading:true, side:THREE.DoubleSide}));
   bodyMesh.castShadow = true;
   car.add(bodyMesh);
 
@@ -946,7 +946,7 @@ function buildCar(){
     wGeo.setAttribute('color', new THREE.Float32BufferAttribute(wd.c, 3));
     wGeo.setIndex(wd.i);
     wGeo.computeVertexNormals();
-    const wMesh = new THREE.Mesh(wGeo, new THREE.MeshLambertMaterial({vertexColors:true, flatShading:true}));
+    const wMesh = new THREE.Mesh(wGeo, new THREE.MeshLambertMaterial({vertexColors:true, flatShading:true, side:THREE.DoubleSide}));
     const spin = new THREE.Group();
     spin.add(wMesh);
     const wg = new THREE.Group();
@@ -966,7 +966,7 @@ function buildCar(){
 function resetCar(){
   P.vel.set(0,0,0); P.angVel=0; P.rpm=CAR.idle; P.speed=0;
   P.pitch=0; P.roll=0; P.pVel=0; P.rVel=0; P.drift=0;
-  P.pos.y = ROAD_Y + 0.30;
+  P.pos.y = ROAD_Y;
 }
 
 function getGroundHeight(x,z){
@@ -1068,7 +1068,7 @@ function updatePhysics(dt){
 
   // ground
   const gH = getGroundHeight(P.pos.x, P.pos.z);
-  const targetY = gH + 0.30;
+  const targetY = gH;
 
   // smooth transition between road and ground
   P.vel.y -= 9.81*dt;
@@ -1138,7 +1138,7 @@ function animate(){
 
   // car visual
   car.position.copy(P.pos);
-  car.rotation.set(P.pitch, P.head, P.roll);
+  car.rotation.set(0, P.head, 0);
   const wRot=P.speed/CAR.wheelR;
   car.wheels.forEach((w,i)=>{
     w.children[0].rotation.x+=wRot*dt;
