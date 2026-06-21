@@ -29,19 +29,18 @@ canvas{display:block}
   color:rgba(255,255,255,0.45);font-size:12px;letter-spacing:8px;
   text-transform:uppercase;margin-bottom:44px;
 }
-.menu-modes{display:flex;gap:16px;justify-content:center;margin-bottom:20px}
-.mode-card{
-  width:210px;padding:28px 20px 22px;border-radius:18px;cursor:pointer;
-  background:rgba(255,255,255,0.06);border:1.5px solid rgba(255,255,255,0.1);
-  transition:all 0.25s;text-align:center;color:#fff;
+#play-btn{
+  background:rgba(255,255,255,0.08);backdrop-filter:blur(20px);
+  border:1.5px solid rgba(255,255,255,0.15);color:#fff;
+  padding:18px 60px;font-size:16px;font-weight:700;letter-spacing:3px;
+  border-radius:60px;cursor:pointer;transition:all 0.3s;
+  text-transform:uppercase;margin-bottom:20px;
 }
-.mode-card:hover{
-  background:rgba(255,255,255,0.12);border-color:rgba(255,180,80,0.4);
-  transform:translateY(-3px);box-shadow:0 12px 40px rgba(255,120,40,0.15);
+#play-btn:hover{
+  background:rgba(255,255,255,0.18);
+  box-shadow:0 8px 40px rgba(255,136,68,0.2);
+  transform:translateY(-2px);
 }
-.mode-card .mode-icon{font-size:36px;margin-bottom:10px;filter:grayscale(0.2)}
-.mode-card .mode-title{font-size:16px;font-weight:700;letter-spacing:1px;margin-bottom:6px}
-.mode-card .mode-desc{font-size:11px;color:rgba(255,255,255,0.4);line-height:1.5}
 #menu .hint{color:rgba(255,255,255,0.2);font-size:10px;margin-top:24px;letter-spacing:1px}
 
 /* ── HUD ── */
@@ -67,20 +66,7 @@ canvas{display:block}
 #rpm-fill{height:100%;width:0%;border-radius:3px;transition:background 0.15s}
 #rpm-txt{font-size:10px;opacity:0.35;margin-top:5px;font-variant-numeric:tabular-nums}
 
-/* ── RACE HUD ── */
-#race-hud{
-  position:fixed;top:20px;left:50%;transform:translateX(-50%);
-  display:none;z-index:10;text-align:center;pointer-events:none;
-}
-#race-hud.show{display:block}
-#lap-info{
-  background:rgba(0,0,0,0.6);backdrop-filter:blur(14px);
-  border:1px solid rgba(255,255,255,0.1);border-radius:14px;
-  padding:12px 28px;color:#fff;font-size:14px;font-weight:600;
-  display:inline-flex;gap:24px;
-}
-#lap-info span{opacity:0.5;font-size:11px;font-weight:400;display:block}
-#best-lap{color:#44ff88}
+
 
 /* ── MINIMAP ── */
 #minimap{
@@ -123,18 +109,7 @@ canvas{display:block}
   <div id="menu-content">
     <h1><span>LOW POLY</span> DRIVE</h1>
     <div class="sub">Open World</div>
-    <div class="menu-modes">
-      <div class="mode-card" id="btn-freeroam">
-        <div class="mode-icon">🏙️</div>
-        <div class="mode-title">FREE ROAM</div>
-        <div class="mode-desc">Explore an open world with roads, trees &amp; sunset vibes</div>
-      </div>
-      <div class="mode-card" id="btn-race">
-        <div class="mode-icon">🏁</div>
-        <div class="mode-title">TIME ATTACK</div>
-        <div class="mode-desc">Race a circuit with hairpins &amp; chicanes — set your best lap</div>
-      </div>
-    </div>
+    <button id="play-btn">START DRIVING</button>
     <div class="hint">W A S D to drive · C camera · R reset</div>
   </div>
 </div>
@@ -154,13 +129,7 @@ canvas{display:block}
   </div>
 </div>
 
-<div id="race-hud">
-  <div id="lap-info">
-    <div><span>LAP</span><div id="lap-num">0 / —</div></div>
-    <div><span>TIME</span><div id="lap-time">0:00.00</div></div>
-    <div><span>BEST</span><div id="best-lap">—</div></div>
-  </div>
-</div>
+
 
 <div id="minimap"><canvas id="mm" width="180" height="180"></canvas></div>
 
@@ -206,7 +175,6 @@ let car;
 let keys = {};
 let camMode = 0;
 let playing = false;
-let gameMode = 'freeroam'; // 'freeroam' or 'race'
 
 const P = {
   pos: new THREE.Vector3(0, ROAD_Y, 20),
@@ -221,17 +189,6 @@ let collidables = [];
 let roadSegs = [];
 let intersections = [];
 
-// Race state
-let raceCheckpoints = [];
-let raceNextCP = 0;
-let raceLap = 0;
-let raceLapStart = 0;
-let raceBestLap = Infinity;
-let raceStarted = false;
-
-// Freeroam scene objects
-let freeroamObjects = null;
-let raceObjects = null;
 
 /* ═══════════════════════════════════════════
    INIT
@@ -295,13 +252,7 @@ function init(){
     renderer.setSize(innerWidth,innerHeight);
   });
 
-  function startMode(mode){
-    gameMode = mode;
-    clearWorld();
-    if(mode==='freeroam') buildFreeroamWorld();
-    else buildRaceWorld();
-    buildCar();
-
+  document.getElementById('play-btn').onclick = ()=>{
     document.getElementById('menu').style.opacity='0';
     setTimeout(()=>{
       document.getElementById('menu').style.display='none';
@@ -309,16 +260,9 @@ function init(){
       document.getElementById('minimap').classList.add('show');
       document.getElementById('controls').classList.add('show');
       document.getElementById('back-btn').style.display='block';
-      if(mode==='race'){
-        document.getElementById('race-hud').classList.add('show');
-        raceNextCP=0; raceLap=0; raceBestLap=Infinity; raceStarted=false;
-      }
       playing=true;
     },800);
-  }
-
-  document.getElementById('btn-freeroam').onclick = ()=> startMode('freeroam');
-  document.getElementById('btn-race').onclick = ()=> startMode('race');
+  };
   document.getElementById('back-btn').onclick = ()=>{
     playing=false;
     document.getElementById('menu').style.display='flex';
@@ -326,7 +270,6 @@ function init(){
     document.getElementById('hud').classList.remove('show');
     document.getElementById('minimap').classList.remove('show');
     document.getElementById('controls').classList.remove('show');
-    document.getElementById('race-hud').classList.remove('show');
     document.getElementById('back-btn').style.display='none';
   };
 
@@ -336,20 +279,6 @@ function init(){
   animate();
 }
 
-function clearWorld(){
-  // Remove everything except lights and camera
-  const keep = [];
-  scene.traverse(c=>{
-    if(c.isLight || c===scene) keep.push(c);
-  });
-  while(scene.children.length > 0) scene.remove(scene.children[0]);
-  keep.forEach(c=>{ if(c!==scene) scene.add(c) });
-  collidables=[];
-  roadSegs=[];
-  intersections=[];
-  raceCheckpoints=[];
-  if(car) car=null;
-}
 
 /* ═══════════════════════════════════════════
    MATERIALS
@@ -358,8 +287,6 @@ const roadMat = new THREE.MeshLambertMaterial({color:0x3a3a44, flatShading:true}
 const lineMat = new THREE.MeshLambertMaterial({color:0xddcc44, flatShading:true});
 const dashMat = new THREE.MeshLambertMaterial({color:0xcccccc, flatShading:true});
 const sidewalkMat = new THREE.MeshLambertMaterial({color:0x777777, flatShading:true});
-const kerbRedMat = new THREE.MeshLambertMaterial({color:0xcc2222, flatShading:true});
-const kerbWhiteMat = new THREE.MeshLambertMaterial({color:0xeeeeee, flatShading:true});
 
 /* ═══════════════════════════════════════════
    ROAD BUILDER
@@ -526,26 +453,6 @@ function buildCurvedRoad(points, width){
   }
 }
 
-// Race track kerbs (red-white striped elevated)
-function buildKerb(x1,z1,x2,z2,side,width){
-  const dx=x2-x1, dz=z2-z1;
-  const len=Math.sqrt(dx*dx+dz*dz);
-  const ang=Math.atan2(dx,dz);
-  const nx=-dz/len, nz=dx/len;
-  const kw=1.2;
-  const kSegs = Math.max(1, Math.floor(len/1.5));
-  for(let i=0;i<kSegs;i++){
-    const t=(i+0.5)/kSegs;
-    const kx=x1+dx*t+nx*(width/2+kw/2)*side;
-    const kz=z1+dz*t+nz*(width/2+kw/2)*side;
-    const mat = i%2===0 ? kerbRedMat : kerbWhiteMat;
-    const k=new THREE.Mesh(new THREE.BoxGeometry(kw, SIDEWALK_H*0.8, len/kSegs), mat);
-    k.position.set(kx, SIDEWALK_H*0.4, kz);
-    k.rotation.y=ang;
-    k.receiveShadow=true; k.castShadow=true;
-    scene.add(k);
-  }
-}
 
 /* ═══════════════════════════════════════════
    ENVIRONMENT OBJECTS
@@ -941,177 +848,6 @@ function buildFreeroamWorld(){
   P.head = 0;
 }
 
-/* ═══════════════════════════════════════════
-   RACE WORLD
-   ═══════════════════════════════════════════ */
-function buildRaceWorld(){
-  // ground — race environment
-  const gGeo = new THREE.PlaneGeometry(800,800,30,30);
-  const gp = gGeo.attributes.position;
-  for(let i=0;i<gp.count;i++){
-    gp.setZ(i, gp.getZ(i) + (Math.random()-0.5)*0.15);
-  }
-  gGeo.computeVertexNormals();
-  const ground = new THREE.Mesh(gGeo, new THREE.MeshLambertMaterial({color:0x4a8a2a, flatShading:true}));
-  ground.rotation.x = -Math.PI/2;
-  ground.receiveShadow=true;
-  scene.add(ground);
-
-  // Build a proper race circuit
-  // Track layout: a loop with a hairpin, chicane, and long straights
-  const trackPts = [];
-  // Start/finish straight (along +Z)
-  const R = 120; // overall size
-
-  // Define track as a series of points
-  // Start straight
-  for(let i=0;i<=10;i++) trackPts.push({x:0, z:-R+i*(R*0.6)/10});
-
-  // Sweeping right turn into back straight
-  for(let i=1;i<=15;i++){
-    const a = (i/15)*Math.PI*0.5;
-    trackPts.push({x:Math.sin(a)*50, z:-R*0.4+Math.cos(a)*50-50+R*0.6});
-  }
-
-  // Chicane (S-bend)
-  for(let i=1;i<=8;i++){
-    const t=i/8;
-    trackPts.push({x:50+Math.sin(t*Math.PI)*20, z:R*0.2+50+t*40});
-  }
-
-  // Right turn towards hairpin
-  for(let i=1;i<=12;i++){
-    const a=(i/12)*Math.PI*0.5;
-    trackPts.push({x:50-30+Math.cos(a)*30, z:R*0.2+90+Math.sin(a)*30});
-  }
-
-  // Approach to hairpin
-  for(let i=1;i<=8;i++){
-    const t=i/8;
-    trackPts.push({x:-10+t*10, z:R*0.2+120+t*20});
-  }
-
-  // Hairpin (180 degree)
-  for(let i=1;i<=20;i++){
-    const a=(i/20)*Math.PI;
-    trackPts.push({x:0+Math.sin(a)*25, z:R*0.2+140+Math.cos(a)*25+25});
-  }
-
-  // Back down the other side
-  for(let i=1;i<=10;i++){
-    const t=i/10;
-    trackPts.push({x:-25+t*5, z:R*0.2+140-t*50});
-  }
-
-  // Sweeping left back to start
-  for(let i=1;i<=20;i++){
-    const a=(i/20)*Math.PI*0.8;
-    trackPts.push({x:-20-Math.sin(a)*60, z:R*0.2+90-Math.cos(a)*60-60+60});
-  }
-
-  // Final curve back to start
-  for(let i=1;i<=15;i++){
-    const a=(i/15)*Math.PI*0.5;
-    trackPts.push({x:-80+Math.cos(a)*80, z:-R+80-Math.sin(a)*80});
-  }
-
-  // Build the track road
-  const trackW = 12;
-  buildCurvedRoad(trackPts, trackW);
-
-  // Add kerbs at key corners
-  // Hairpin kerbs
-  for(let i=0;i<trackPts.length-1;i++){
-    const p1=trackPts[i], p2=trackPts[i+1];
-    const dx=p2.x-p1.x, dz=p2.z-p1.z;
-    const len=Math.sqrt(dx*dx+dz*dz);
-    if(len<0.1) continue;
-    const angle = Math.abs(Math.atan2(dx,dz));
-    // Add kerbs on curves (where direction changes significantly)
-    if(i>0){
-      const pp=trackPts[i-1];
-      const pdx=p1.x-pp.x, pdz=p1.z-pp.z;
-      const plen=Math.sqrt(pdx*pdx+pdz*pdz);
-      if(plen>0.1){
-        const cross=Math.abs((pdx*dz-pdz*dx)/(plen*len));
-        if(cross > 0.15){
-          for(let side=-1;side<=1;side+=2){
-            buildKerb(p1.x,p1.z,p2.x,p2.z,side,trackW);
-          }
-        }
-      }
-    }
-  }
-
-  // Race environment: scattered trees around the track
-  const rng=(a,b)=>a+Math.random()*(b-a);
-  const notOnTrack=(x,z)=>{
-    for(const s of roadSegs){
-      const ddx=s.x2-s.x1, ddz=s.z2-s.z1;
-      const l=Math.sqrt(ddx*ddx+ddz*ddz);
-      const nnx=-ddz/l, nnz=ddx/l;
-      const t=((x-s.x1)*ddx+(z-s.z1)*ddz)/(l*l);
-      if(t<-0.02||t>1.02) continue;
-      const px=s.x1+ddx*t, pz=s.z1+ddz*t;
-      const dist=Math.abs((x-px)*nnx+(z-pz)*nnz);
-      if(dist < s.w/2+6) return false;
-    }
-    return true;
-  };
-
-  for(let i=0;i<400;i++){
-    const x=rng(-350,350), z=rng(-200,350);
-    if(!notOnTrack(x,z)) continue;
-    mkTree(x,z, Math.floor(Math.random()*4));
-  }
-  for(let i=0;i<120;i++){
-    const x=rng(-350,350), z=rng(-200,350);
-    if(!notOnTrack(x,z)) continue;
-    mkPineTree(x,z);
-  }
-  for(let i=0;i<200;i++){
-    const x=rng(-350,350), z=rng(-200,350);
-    if(!notOnTrack(x,z)) continue;
-    mkGrassClump(x,z);
-  }
-
-  // Checkpoints for lap timing (start/finish line at first point)
-  const cpInterval = Math.floor(trackPts.length / 5);
-  for(let i=0;i<5;i++){
-    const idx = i*cpInterval;
-    if(idx < trackPts.length){
-      raceCheckpoints.push({x:trackPts[idx].x, z:trackPts[idx].z, r:15});
-    }
-  }
-
-  // Start/finish line visual
-  const sfGeo = new THREE.BoxGeometry(trackW, 0.03, 1.5);
-  const sfLine = new THREE.Mesh(sfGeo, new THREE.MeshLambertMaterial({color:0xffffff,flatShading:true}));
-  sfLine.position.set(trackPts[0].x, ROAD_Y+0.02, trackPts[0].z);
-  scene.add(sfLine);
-
-  // Grandstand (simple)
-  const stand = new THREE.Mesh(new THREE.BoxGeometry(30,5,6),
-    new THREE.MeshLambertMaterial({color:0x888899,flatShading:true}));
-  stand.position.set(-20, 2.5, -R-8);
-  stand.castShadow=true; scene.add(stand);
-  const standRoof = new THREE.Mesh(new THREE.BoxGeometry(32,0.5,8),
-    new THREE.MeshLambertMaterial({color:0x444455,flatShading:true}));
-  standRoof.position.set(-20, 5.5, -R-8);
-  scene.add(standRoof);
-
-  // Tire walls at hairpin
-  for(let i=0;i<8;i++){
-    const tw = new THREE.Mesh(new THREE.CylinderGeometry(0.4,0.4,0.8,8),
-      new THREE.MeshLambertMaterial({color:0x222222,flatShading:true}));
-    tw.rotation.x=Math.PI/2;
-    tw.position.set(25+i*0.9, 0.4, R*0.2+190);
-    scene.add(tw);
-  }
-
-  P.pos.set(trackPts[0].x, ROAD_Y, trackPts[0].z - 5);
-  P.head = 0;
-}
 
 /* ═══════════════════════════════════════════
    CAR (Embedded Super Car mesh)
@@ -1285,24 +1021,6 @@ function updatePhysics(dt){
     }
   }
 
-  // Race checkpoint logic
-  if(gameMode==='race' && raceCheckpoints.length>0){
-    const cp=raceCheckpoints[raceNextCP];
-    const cdx=P.pos.x-cp.x, cdz=P.pos.z-cp.z;
-    if(Math.sqrt(cdx*cdx+cdz*cdz) < cp.r){
-      raceNextCP++;
-      if(raceNextCP >= raceCheckpoints.length){
-        raceNextCP=0;
-        if(raceStarted){
-          raceLap++;
-          const lapTime=(performance.now()-raceLapStart)/1000;
-          if(lapTime < raceBestLap) raceBestLap=lapTime;
-        }
-        raceStarted=true;
-        raceLapStart=performance.now();
-      }
-    }
-  }
 }
 
 /* ═══════════════════════════════════════════
@@ -1363,21 +1081,11 @@ function animate(){
   document.getElementById('rpm-txt').textContent=Math.round(P.rpm)+' RPM';
   document.getElementById('gear-val').textContent=P.gear===0?'N':P.gear;
 
-  // Race HUD
-  if(gameMode==='race'){
-    document.getElementById('lap-num').textContent=raceLap+' / ∞';
-    if(raceStarted){
-      const t=(performance.now()-raceLapStart)/1000;
-      document.getElementById('lap-time').textContent=fmtTime(t);
-    }
-    document.getElementById('best-lap').textContent=raceBestLap<Infinity?fmtTime(raceBestLap):'—';
-  }
-
   // minimap
   const mc=document.getElementById('mm');
   const mx=mc.getContext('2d');
   mx.clearRect(0,0,180,180);
-  const ms = gameMode==='race' ? 0.7 : 0.55;
+  const ms = 0.55;
   const mo_x=90-P.pos.x*ms, mo_z=90-P.pos.z*ms;
 
   // dark background
@@ -1386,7 +1094,7 @@ function animate(){
 
   // road network — bright white
   mx.strokeStyle='rgba(255,255,255,0.85)';
-  mx.lineWidth=Math.max(3, (gameMode==='race'?12:ROAD_W)*ms*0.7);
+  mx.lineWidth=Math.max(3, ROAD_W*ms*0.7);
   mx.lineCap='round';mx.lineJoin='round';
   for(const s of roadSegs){
     mx.beginPath();
@@ -1396,22 +1104,10 @@ function animate(){
   }
 
   // intersections
-  if(gameMode==='freeroam'){
-    mx.fillStyle='rgba(255,255,255,0.8)';
-    for(const it of intersections){
-      const ix=mo_x+it.x*ms, iz=mo_z+it.z*ms;
-      mx.fillRect(ix-it.size*ms/2, iz-it.size*ms/2, it.size*ms, it.size*ms);
-    }
-  }
-
-  // race checkpoints
-  if(gameMode==='race'){
-    for(let ci=0;ci<raceCheckpoints.length;ci++){
-      const cp=raceCheckpoints[ci];
-      const cx=mo_x+cp.x*ms, cz=mo_z+cp.z*ms;
-      mx.fillStyle = ci===raceNextCP ? 'rgba(255,255,0,0.6)' : 'rgba(100,255,100,0.2)';
-      mx.beginPath();mx.arc(cx,cz,4,0,Math.PI*2);mx.fill();
-    }
+  mx.fillStyle='rgba(255,255,255,0.8)';
+  for(const it of intersections){
+    const ix=mo_x+it.x*ms, iz=mo_z+it.z*ms;
+    mx.fillRect(ix-it.size*ms/2, iz-it.size*ms/2, it.size*ms, it.size*ms);
   }
 
   // car dot
@@ -1426,11 +1122,6 @@ function animate(){
   renderer.render(scene,cam);
 }
 
-function fmtTime(s){
-  const m=Math.floor(s/60);
-  const sec=s%60;
-  return m+':'+sec.toFixed(2).padStart(5,'0');
-}
 
 init();
 </script>
