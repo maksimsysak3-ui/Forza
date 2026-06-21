@@ -344,10 +344,12 @@ let intersections = [];
 function addIntersection(x, z, size){
   intersections.push({x,z,size: size||ROAD_W+4});
 
-  // intersection road surface
-  const g = new THREE.BoxGeometry(size||ROAD_W+4, ROAD_Y, size||ROAD_W+4);
+  // intersection road surface (flat plane, not a box)
+  const s2 = size||ROAD_W+4;
+  const g = new THREE.PlaneGeometry(s2, s2);
   const m = new THREE.Mesh(g, roadMat);
-  m.position.set(x, ROAD_Y/2, z);
+  m.rotation.x = -Math.PI/2;
+  m.position.set(x, ROAD_Y, z);
   m.receiveShadow=true;
   scene.add(m);
 }
