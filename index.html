@@ -921,7 +921,7 @@ function updatePhysics(dt){
 
   const thr=(keys.KeyW||keys.ArrowUp)?1:0;
   const brk=(keys.KeyS||keys.ArrowDown)?1:0;
-  const str=((keys.KeyA||keys.ArrowLeft)?1:0)+((keys.KeyD||keys.ArrowRight)?-1:0);
+  const str=((keys.KeyA||keys.ArrowLeft)?-1:0)+((keys.KeyD||keys.ArrowRight)?1:0);
   const hbrk=(keys.Space)?1:0;
 
   // transmission
@@ -1045,7 +1045,7 @@ function animate(){
 
   // car visual
   car.position.copy(P.pos);
-  car.rotation.set(0, P.head, 0);
+  car.rotation.set(0, P.head + Math.PI, 0);
   const wRot=P.speed/CAR.wheelR;
   car.wheels.forEach((w,i)=>{
     w.children[0].rotation.x+=wRot*dt;
