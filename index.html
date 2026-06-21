@@ -165,7 +165,7 @@ let camMode = 0;
 let playing = false;
 
 const P = {
-  pos: new THREE.Vector3(0, ROAD_Y + 0.30, 0),
+  pos: new THREE.Vector3(0, ROAD_Y + 0.30, 20),
   vel: new THREE.Vector3(0,0,0),
   head: 0, angVel: 0,
   rpm: 800, gear: 1, speed: 0,
@@ -1150,42 +1150,50 @@ function buildCar(){
   const wps=[{x:-0.84,z:1.22},{x:0.84,z:1.22},{x:-0.84,z:-1.22},{x:0.84,z:-1.22}];
   for(const wp of wps){
     const wg=new THREE.Group();
+    const isLeft = wp.x < 0;
 
-    // tire (thicker sidewall)
+    // inner group that spins
+    const spin=new THREE.Group();
+
+    // tire
     const tireOuter=new THREE.Mesh(new THREE.TorusGeometry(0.24,0.09,6,12),tireMat);
-    wg.add(tireOuter);
+    tireOuter.rotation.y=Math.PI/2;
+    spin.add(tireOuter);
 
-    // rim dish
+    // rim disk (flat cylinder facing outward)
     const rimDish=new THREE.Mesh(new THREE.CylinderGeometry(0.20,0.20,0.14,10),goldRim);
-    rimDish.rotation.z=Math.PI/2; wg.add(rimDish);
+    rimDish.rotation.x=Math.PI/2;
+    spin.add(rimDish);
 
     // rim lip
     const rimLip=new THREE.Mesh(new THREE.TorusGeometry(0.20,0.015,4,10),goldRim);
-    wg.add(rimLip);
+    rimLip.rotation.y=Math.PI/2;
+    spin.add(rimLip);
 
     // 5 spokes
     for(let sp=0;sp<5;sp++){
       const ang=(sp/5)*Math.PI*2;
-      const spoke=new THREE.Mesh(new THREE.BoxGeometry(0.18,0.04,0.03),darkGold);
-      spoke.position.set(0.08, Math.sin(ang)*0.10, Math.cos(ang)*0.10);
-      spoke.rotation.x=ang;
-      wg.add(spoke);
+      const spoke=new THREE.Mesh(new THREE.BoxGeometry(0.03,0.04,0.18),darkGold);
+      spoke.position.set(0, Math.sin(ang)*0.10, Math.cos(ang)*0.10);
+      spoke.rotation.z=ang;
+      spin.add(spoke);
     }
 
     // center cap
     const cap=new THREE.Mesh(new THREE.CylinderGeometry(0.04,0.04,0.16,6),
       new THREE.MeshLambertMaterial({color:0x887744,flatShading:true}));
-    cap.rotation.z=Math.PI/2; wg.add(cap);
+    cap.rotation.x=Math.PI/2; spin.add(cap);
 
     // lug nuts
     for(let ln=0;ln<5;ln++){
       const ang=(ln/5)*Math.PI*2;
       const lug=new THREE.Mesh(new THREE.CylinderGeometry(0.012,0.012,0.16,4),chrome);
-      lug.rotation.z=Math.PI/2;
+      lug.rotation.x=Math.PI/2;
       lug.position.set(0, Math.sin(ang)*0.06, Math.cos(ang)*0.06);
-      wg.add(lug);
+      spin.add(lug);
     }
 
+    wg.add(spin);
     wg.position.set(wp.x,0.30,wp.z);
     car.add(wg); car.wheels.push(wg);
   }
@@ -1375,8 +1383,7 @@ function animate(){
   car.rotation.set(P.pitch, P.head, P.roll);
   const wRot=P.speed/CAR.wheelR;
   car.wheels.forEach((w,i)=>{
-    w.children[0].rotation.x+=wRot*0.016;
-    w.children[1].rotation.x=w.children[0].rotation.x;
+    w.children[0].rotation.x+=wRot*dt;
     if(i<2) w.rotation.y=P.wAngle;
   });
 
