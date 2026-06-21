@@ -149,7 +149,7 @@ const CAR = {
   final:3.5, wheelR:0.307,
   maxRPM:7500, idle:800, upShift:7000, downShift:2500,
   drag:0.42, roll:12, brakeF:4200, hbrakeF:2800,
-  maxSteer:0.55, steerSpd:3.0, steerRet:4.5,
+  maxSteer:0.48, steerSpd:2.6, steerRet:4.5,
   wb:2.5, tw:1.6, cgH:0.45,
   gripF:1.4, gripR:1.35, csF:14, csR:13,
   downforce:0.45
@@ -190,14 +190,17 @@ function init(){
   skyC.width=2; skyC.height=512;
   const sCtx = skyC.getContext('2d');
   const sG = sCtx.createLinearGradient(0,0,0,512);
-  sG.addColorStop(0,'#6cacde');
-  sG.addColorStop(0.3,'#a8d4f0');
-  sG.addColorStop(0.55,'#f5e0c0');
-  sG.addColorStop(0.75,'#e8a870');
-  sG.addColorStop(1,'#d08050');
+  sG.addColorStop(0,'#1a1a3a');
+  sG.addColorStop(0.15,'#3a2a5a');
+  sG.addColorStop(0.3,'#7a3a50');
+  sG.addColorStop(0.45,'#d45a30');
+  sG.addColorStop(0.6,'#f08030');
+  sG.addColorStop(0.75,'#f0a040');
+  sG.addColorStop(0.9,'#f0c868');
+  sG.addColorStop(1,'#f0d080');
   sCtx.fillStyle=sG; sCtx.fillRect(0,0,2,512);
   scene.background = new THREE.CanvasTexture(skyC);
-  scene.fog = new THREE.FogExp2(0xd4c8b8, 0.0012);
+  scene.fog = new THREE.FogExp2(0xc8a070, 0.0014);
 
   cam = new THREE.PerspectiveCamera(60, innerWidth/innerHeight, 0.5, 2000);
   renderer = new THREE.WebGLRenderer({antialias:true});
@@ -206,16 +209,16 @@ function init(){
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.15;
+  renderer.toneMappingExposure = 1.0;
   document.body.appendChild(renderer.domElement);
 
   clock = new THREE.Clock();
 
   // lights
-  scene.add(new THREE.AmbientLight(0xfff5e0, 0.55));
-  scene.add(new THREE.HemisphereLight(0x88bbdd, 0x445522, 0.45));
-  const sun = new THREE.DirectionalLight(0xffeecc, 1.5);
-  sun.position.set(250,350,200);
+  scene.add(new THREE.AmbientLight(0xf0a060, 0.4));
+  scene.add(new THREE.HemisphereLight(0xf09050, 0x2a3a1a, 0.5));
+  const sun = new THREE.DirectionalLight(0xff9040, 1.8);
+  sun.position.set(400,120,250);
   sun.castShadow=true;
   sun.shadow.mapSize.set(4096,4096);
   sun.shadow.camera.near=10; sun.shadow.camera.far=900;
@@ -293,8 +296,19 @@ function buildStraightRoad(x1,z1,x2,z2,width){
   const ang=Math.atan2(dx,dz);
   const nx=-dz/len, nz=dx/len;
 
-  // raised road surface
-  const rGeo = new THREE.BoxGeometry(width, ROAD_Y, len);
+  // raised road surface (chunky low-poly segments)
+  const rSegs = Math.max(2, Math.floor(len / 6));
+  const rGeo = new THREE.BoxGeometry(width, ROAD_Y, len, 2, 1, rSegs);
+  const rPos = rGeo.attributes.position;
+  for(let vi=0;vi<rPos.count;vi++){
+    const ly=rPos.getY(vi);
+    if(ly > 0){
+      rPos.setY(vi, ly + (Math.random()-0.5)*0.06);
+      rPos.setX(vi, rPos.getX(vi) + (Math.random()-0.5)*0.12);
+      rPos.setZ(vi, rPos.getZ(vi) + (Math.random()-0.5)*0.12);
+    }
+  }
+  rGeo.computeVertexNormals();
   const road = new THREE.Mesh(rGeo, roadMat);
   road.position.set((x1+x2)/2, ROAD_Y/2, (z1+z2)/2);
   road.rotation.y = ang;
@@ -330,20 +344,24 @@ function buildStraightRoad(x1,z1,x2,z2,width){
     }
   }
 
-  // sidewalks / curbs on edges
+  // sidewalks / curbs on edges (split into segments, skip intersections)
   for(let side=-1;side<=1;side+=2){
     const sw = 1.2;
     const offset = (width/2 + sw/2);
-    const sGeo = new THREE.BoxGeometry(sw, SIDEWALK_H, len);
-    const sidewalk = new THREE.Mesh(sGeo, sidewalkMat);
-    sidewalk.position.set(
-      (x1+x2)/2 + nx*offset*side,
-      SIDEWALK_H/2,
-      (z1+z2)/2 + nz*offset*side
-    );
-    sidewalk.rotation.y = ang;
-    sidewalk.receiveShadow=true; sidewalk.castShadow=true;
-    scene.add(sidewalk);
+    const swSegs = Math.max(1, Math.floor(len / 12));
+    for(let si=0;si<swSegs;si++){
+      const t0=si/swSegs, t1=(si+1)/swSegs;
+      const sx=(x1+dx*t0+x1+dx*t1)/2, sz=(z1+dz*t0+z1+dz*t1)/2;
+      const smx=sx+nx*offset*side, smz=sz+nz*offset*side;
+      if(isInIntersection(smx,smz)) continue;
+      const segL=len/swSegs;
+      const sGeo = new THREE.BoxGeometry(sw, SIDEWALK_H, segL);
+      const sidewalk = new THREE.Mesh(sGeo, sidewalkMat);
+      sidewalk.position.set(smx, SIDEWALK_H/2, smz);
+      sidewalk.rotation.y = ang;
+      sidewalk.receiveShadow=true; sidewalk.castShadow=true;
+      scene.add(sidewalk);
+    }
   }
 
   // barriers along road (skip intersections)
@@ -853,16 +871,16 @@ function buildWorld(){
     return true;
   };
 
-  // Autumn trees (round, like reference) - lots of them
-  for(let i=0;i<180;i++){
-    const x=rng(-550,550), z=rng(-550,550);
+  // Autumn trees (round, like reference) - dense forest feel
+  for(let i=0;i<450;i++){
+    const x=rng(-600,600), z=rng(-600,600);
     if(!notOnRoad(x,z)) continue;
     mkTree(x,z, Math.floor(Math.random()*4));
   }
 
   // Pine trees
-  for(let i=0;i<60;i++){
-    const x=rng(-550,550), z=rng(-550,550);
+  for(let i=0;i<150;i++){
+    const x=rng(-600,600), z=rng(-600,600);
     if(!notOnRoad(x,z)) continue;
     mkPineTree(x,z);
   }
