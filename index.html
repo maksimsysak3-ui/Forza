@@ -272,14 +272,32 @@ let intersections = [];
 function addIntersection(x, z, size){
   intersections.push({x,z,size: size||ROAD_W+4});
 
-  // intersection road surface (flat plane, not a box)
   const s2 = size||ROAD_W+4;
-  const g = new THREE.PlaneGeometry(s2, s2);
+  const g = new THREE.PlaneGeometry(s2, s2, 3, 3);
+  const gPos = g.attributes.position;
+  for(let vi=0;vi<gPos.count;vi++){
+    gPos.setX(vi, gPos.getX(vi) + (Math.random()-0.5)*0.15);
+    gPos.setY(vi, gPos.getY(vi) + (Math.random()-0.5)*0.15);
+  }
+  g.computeVertexNormals();
   const m = new THREE.Mesh(g, roadMat);
   m.rotation.x = -Math.PI/2;
   m.position.set(x, ROAD_Y, z);
   m.receiveShadow=true;
   scene.add(m);
+
+  // corner sidewalk pieces
+  const hw = s2/2 + 0.6;
+  const cs = 2.5;
+  for(let cx=-1;cx<=1;cx+=2){
+    for(let cz=-1;cz<=1;cz+=2){
+      const cGeo = new THREE.BoxGeometry(cs, SIDEWALK_H, cs);
+      const curb = new THREE.Mesh(cGeo, sidewalkMat);
+      curb.position.set(x+cx*hw, SIDEWALK_H/2, z+cz*hw);
+      curb.receiveShadow=true; curb.castShadow=true;
+      scene.add(curb);
+    }
+  }
 }
 
 function isInIntersection(x, z){
@@ -348,12 +366,15 @@ function buildStraightRoad(x1,z1,x2,z2,width){
   for(let side=-1;side<=1;side+=2){
     const sw = 1.2;
     const offset = (width/2 + sw/2);
-    const swSegs = Math.max(1, Math.floor(len / 12));
+    const swSegLen = 6;
+    const swSegs = Math.max(1, Math.ceil(len / swSegLen));
     for(let si=0;si<swSegs;si++){
       const t0=si/swSegs, t1=(si+1)/swSegs;
       const sx=(x1+dx*t0+x1+dx*t1)/2, sz=(z1+dz*t0+z1+dz*t1)/2;
       const smx=sx+nx*offset*side, smz=sz+nz*offset*side;
-      if(isInIntersection(smx,smz)) continue;
+      const e1x=x1+dx*t0+nx*offset*side, e1z=z1+dz*t0+nz*offset*side;
+      const e2x=x1+dx*t1+nx*offset*side, e2z=z1+dz*t1+nz*offset*side;
+      if(isInIntersection(smx,smz) || isInIntersection(e1x,e1z) || isInIntersection(e2x,e2z)) continue;
       const segL=len/swSegs;
       const sGeo = new THREE.BoxGeometry(sw, SIDEWALK_H, segL);
       const sidewalk = new THREE.Mesh(sGeo, sidewalkMat);
@@ -373,7 +394,8 @@ function buildStraightRoad(x1,z1,x2,z2,width){
       const t = (i+0.5)/segs;
       const bx = x1+dx*t + nx*bOffset*side;
       const bz = z1+dz*t + nz*bOffset*side;
-      if(isInIntersection(bx, bz)) continue;
+      const roadPx = x1+dx*t, roadPz = z1+dz*t;
+      if(isInIntersection(bx, bz) || isInIntersection(roadPx, roadPz)) continue;
 
       // small roadside post
       const post = new THREE.Mesh(
@@ -403,14 +425,13 @@ function buildStraightRoad(x1,z1,x2,z2,width){
     const bOff = width/2 + 2.0;
     const bx1 = x1 + nx*bOff*side, bz1 = z1 + nz*bOff*side;
     const bx2 = x2 + nx*bOff*side, bz2 = z2 + nz*bOff*side;
-    // split into sub-segments, skip intersection ones
-    const subSegs = 10;
+    const subLen = 6;
+    const subSegs = Math.max(2, Math.ceil(len / subLen));
     for(let i=0;i<subSegs;i++){
       const t0=i/subSegs, t1=(i+1)/subSegs;
       const sx1=bx1+(bx2-bx1)*t0, sz1=bz1+(bz2-bz1)*t0;
       const sx2=bx1+(bx2-bx1)*t1, sz2=bz1+(bz2-bz1)*t1;
-      const mx=(sx1+sx2)/2, mz=(sz1+sz2)/2;
-      if(isInIntersection(mx,mz)) continue;
+      if(isInIntersection(sx1,sz1) || isInIntersection(sx2,sz2) || isInIntersection((sx1+sx2)/2,(sz1+sz2)/2)) continue;
       const sLen=Math.sqrt((sx2-sx1)**2+(sz2-sz1)**2);
       collidables.push({
         type:'line', x1:sx1,z1:sz1,x2:sx2,z2:sz2,
@@ -872,15 +893,15 @@ function buildWorld(){
   };
 
   // Autumn trees (round, like reference) - dense forest feel
-  for(let i=0;i<450;i++){
-    const x=rng(-600,600), z=rng(-600,600);
+  for(let i=0;i<700;i++){
+    const x=rng(-650,650), z=rng(-650,650);
     if(!notOnRoad(x,z)) continue;
     mkTree(x,z, Math.floor(Math.random()*4));
   }
 
   // Pine trees
-  for(let i=0;i<150;i++){
-    const x=rng(-600,600), z=rng(-600,600);
+  for(let i=0;i<250;i++){
+    const x=rng(-650,650), z=rng(-650,650);
     if(!notOnRoad(x,z)) continue;
     mkPineTree(x,z);
   }
@@ -1192,24 +1213,36 @@ function animate(){
   document.getElementById('rpm-txt').textContent=Math.round(P.rpm)+' RPM';
   document.getElementById('gear-val').textContent=P.gear===0?'N':P.gear;
 
-  // minimap
+  // minimap (zoomed in, follows car)
   const mc=document.getElementById('mm');
   const mx=mc.getContext('2d');
   mx.clearRect(0,0,160,160);
-  const ms=0.12;
+  const ms=0.55;
   const mo_x=80-P.pos.x*ms, mo_z=80-P.pos.z*ms;
 
-  mx.strokeStyle='rgba(120,120,140,0.5)';mx.lineWidth=2;
+  // road network
+  mx.strokeStyle='rgba(180,180,200,0.7)';mx.lineWidth=Math.max(3, ROAD_W*ms*0.8);
+  mx.lineCap='round';
   for(const s of roadSegs){
     const sx1=mo_x+s.x1*ms, sz1=mo_z+s.z1*ms;
     const sx2=mo_x+s.x2*ms, sz2=mo_z+s.z2*ms;
     mx.beginPath();mx.moveTo(sx1,sz1);mx.lineTo(sx2,sz2);mx.stroke();
   }
 
+  // intersection fills
+  mx.fillStyle='rgba(180,180,200,0.7)';
+  for(const it of intersections){
+    const ix=mo_x+it.x*ms, iz=mo_z+it.z*ms;
+    mx.fillRect(ix-it.size*ms/2, iz-it.size*ms/2, it.size*ms, it.size*ms);
+  }
+
+  // car dot and heading
   mx.fillStyle='#ff4444';
-  mx.beginPath();mx.arc(80,80,3.5,0,Math.PI*2);mx.fill();
-  const hx=Math.sin(P.head)*7, hz=Math.cos(P.head)*7;
-  mx.strokeStyle='#ff4444';mx.lineWidth=2;
+  mx.beginPath();mx.arc(80,80,4.5,0,Math.PI*2);mx.fill();
+  mx.strokeStyle='#ffffff';mx.lineWidth=1.5;
+  mx.beginPath();mx.arc(80,80,4.5,0,Math.PI*2);mx.stroke();
+  const hx=Math.sin(P.head)*10, hz=Math.cos(P.head)*10;
+  mx.strokeStyle='#ff4444';mx.lineWidth=2.5;
   mx.beginPath();mx.moveTo(80,80);mx.lineTo(80+hx,80+hz);mx.stroke();
 
   renderer.render(scene,cam);
