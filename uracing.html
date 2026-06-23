@@ -213,33 +213,66 @@
   .dc-bar{height:6px;border-radius:4px;background:rgba(255,255,255,.08);margin:8px 0 5px;overflow:hidden}
   .dc-bar i{display:block;height:100%;background:linear-gradient(90deg,#3f6cff,#5ef08a);transition:width .3s}
   .dc-lvl{font-size:11px;color:#9aa6d0;letter-spacing:.1em}.dc-lvl b{color:#fff}
-  /* upgrade modal */
-  .umodal{position:fixed;inset:0;z-index:25;display:none;align-items:center;justify-content:center;
-    background:rgba(4,6,11,.78);backdrop-filter:blur(7px)}
-  .umodal.show{display:flex}
-  .um-card{width:min(620px,92vw);max-height:86vh;overflow:auto;position:relative;
-    background:linear-gradient(180deg,#141a2a,#0b0f1a);border:1px solid rgba(130,150,255,.2);
-    border-radius:20px;padding:26px;box-shadow:0 40px 90px rgba(0,0,0,.7)}
-  .um-close{position:absolute;right:16px;top:14px;background:none;border:none;color:#8a96c2;
-    font-size:22px;cursor:pointer;line-height:1}
-  .um-close:hover{color:#fff}
-  .um-head{display:flex;gap:18px;align-items:center;margin-bottom:6px}
-  .um-head .um-ico{width:92px;height:80px}.um-head .um-ico svg{width:100%;height:100%}
-  .um-head .um-ico path{fill:none;stroke:#cdd7ff;stroke-width:3;stroke-linejoin:round;stroke-linecap:round}
-  .um-head h2{margin:0;font-size:24px}
-  .um-head .um-sub{color:#8a96c2;font-size:12px;letter-spacing:.16em;text-transform:uppercase;margin-top:3px}
-  .um-track{margin-top:16px;display:flex;flex-direction:column;gap:8px}
-  .um-step{display:flex;align-items:center;gap:12px;padding:11px 14px;border-radius:11px;
-    background:rgba(255,255,255,.03);border:1px solid rgba(130,150,255,.1)}
-  .um-step.done{border-color:rgba(94,240,138,.4);background:rgba(94,240,138,.06)}
-  .um-step.active{border-color:rgba(130,150,255,.4)}
-  .um-step .us-n{width:26px;height:26px;border-radius:8px;display:flex;align-items:center;justify-content:center;
-    font-weight:800;font-size:12px;background:rgba(255,255,255,.07);flex:0 0 auto}
-  .um-step .us-d{flex:1}.us-d .us-t{font-size:13px;font-weight:600}
-  .us-d .us-eff{font-size:11px;color:#8a96c2}
-  .um-step .btn{width:auto;padding:9px 16px;font-size:12px;letter-spacing:.08em}
-  .um-step .us-done{color:#7CFFb0;font-size:12px;font-weight:700;letter-spacing:.1em}
-  .um-step .us-lock{color:#67708f;font-size:11px;letter-spacing:.08em}
+  /* ---------- cinematic upgrade stage ---------- */
+  .umodal{position:fixed;inset:0;z-index:25;display:none;background:rgba(3,5,9,.86);
+    backdrop-filter:blur(9px);opacity:0;transition:opacity .25s}
+  .umodal.show{display:flex;opacity:1}
+  .um-stage{position:relative;margin:auto;width:min(1040px,94vw);height:min(640px,90vh);
+    display:grid;grid-template-columns:42% 58%;overflow:hidden;border-radius:22px;
+    border:1px solid rgba(130,150,255,.18);box-shadow:0 50px 120px rgba(0,0,0,.75);
+    background:linear-gradient(160deg,#10141f,#070a12)}
+  .um-close{position:absolute;right:18px;top:14px;z-index:3;background:rgba(255,255,255,.06);
+    border:1px solid rgba(255,255,255,.12);color:#cdd7ff;width:34px;height:34px;border-radius:10px;
+    font-size:18px;cursor:pointer;line-height:1}
+  .um-close:hover{background:rgba(255,255,255,.14);color:#fff}
+  /* left hero panel */
+  .um-left{position:relative;padding:34px 30px;display:flex;flex-direction:column;
+    background:radial-gradient(120% 80% at 30% 20%,rgba(40,60,110,.35),rgba(8,11,18,0) 60%)}
+  .um-left::after{content:"";position:absolute;inset:0;
+    background:repeating-linear-gradient(115deg,rgba(255,255,255,.015) 0 2px,transparent 2px 9px);pointer-events:none}
+  .um-glow{position:absolute;left:-20%;top:8%;width:160%;height:55%;
+    background:radial-gradient(closest-side,var(--ustat,#4d7cff) 0%,transparent 70%);
+    opacity:.32;filter:blur(8px)}
+  .um-ico{position:relative;height:230px;display:flex;align-items:center;justify-content:center;margin-top:6px}
+  .um-ico svg{width:78%;height:100%;filter:drop-shadow(0 10px 30px rgba(0,0,0,.6))}
+  .um-ico path{fill:none;stroke:#eaf0ff;stroke-width:3;stroke-linejoin:round;stroke-linecap:round}
+  .um-cat{font-size:11px;letter-spacing:.32em;color:var(--ustat,#7fa0ff);text-transform:uppercase;font-weight:700}
+  .um-left h2{margin:6px 0 12px;font-size:34px;letter-spacing:.01em;line-height:1}
+  .um-lvlbig{display:flex;align-items:baseline;gap:4px;margin-bottom:14px}
+  .um-lvlbig span{font-size:46px;font-weight:900;line-height:.8;font-variant-numeric:tabular-nums}
+  .um-lvlbig i{font-style:normal;color:#7d8ab5;font-size:20px;font-weight:700}
+  .um-statbar{height:10px;border-radius:6px;background:rgba(255,255,255,.07);overflow:hidden;margin-bottom:auto}
+  .um-statbar i{display:block;height:100%;border-radius:6px;
+    background:linear-gradient(90deg,#3f6cff,var(--ustat,#5ef08a));transition:width .4s cubic-bezier(.2,.8,.2,1)}
+  .um-wallet{display:flex;gap:12px;margin-top:18px}
+  .um-wallet>div{flex:1;background:rgba(8,11,20,.7);border:1px solid rgba(130,150,255,.14);
+    border-radius:11px;padding:9px 13px}
+  .um-wallet span{display:block;font-size:9px;letter-spacing:.22em;color:#8a96c2;text-transform:uppercase}
+  .um-wallet b{font-size:17px;font-variant-numeric:tabular-nums}
+  .um-wallet #umMoney{color:#7CFFb0}.um-wallet #umRP{color:#7ab8ff}
+  /* right ladder */
+  .um-right{position:relative;padding:24px 24px 24px 16px;overflow:auto;
+    background:linear-gradient(180deg,rgba(12,16,26,.6),rgba(6,9,15,.6))}
+  .um-rhead{font-size:12px;letter-spacing:.24em;color:#8a96c2;text-transform:uppercase;
+    padding:4px 6px 14px;position:sticky;top:0}
+  .um-track{display:flex;flex-direction:column;gap:7px;position:relative}
+  .um-step{display:flex;align-items:center;gap:13px;padding:12px 15px;border-radius:12px;
+    background:rgba(255,255,255,.025);border:1px solid rgba(130,150,255,.1);transition:.18s}
+  .um-step.done{border-color:rgba(94,240,138,.35);
+    background:linear-gradient(90deg,rgba(94,240,138,.1),rgba(94,240,138,.02))}
+  .um-step.active{border-color:var(--ustat,#5a7cff);
+    background:linear-gradient(90deg,rgba(90,124,255,.14),transparent);
+    box-shadow:0 6px 22px rgba(60,90,200,.22)}
+  .um-step .us-n{width:30px;height:30px;border-radius:9px;display:flex;align-items:center;justify-content:center;
+    font-weight:800;font-size:13px;background:rgba(255,255,255,.06);flex:0 0 auto}
+  .um-step.done .us-n{background:rgba(94,240,138,.18);color:#9bf7bb}
+  .um-step.active .us-n{background:var(--ustat,#5a7cff);color:#fff}
+  .um-step .us-d{flex:1;min-width:0}.us-d .us-t{font-size:14px;font-weight:700}
+  .us-d .us-eff{font-size:11px;color:#8a96c2;margin-top:1px}
+  .um-step .btn{width:auto;padding:10px 18px;font-size:12px;letter-spacing:.08em}
+  .um-step .us-done{color:#7CFFb0;font-size:12px;font-weight:800;letter-spacing:.14em}
+  .um-step .us-lock{font-size:15px;color:#586089}
+  @media(max-width:760px){.um-stage{grid-template-columns:1fr;height:92vh}.um-ico{height:150px}}
 
   /* ---------- HUD (racing UI) ---------- */
   #hud{position:fixed;inset:0;z-index:4;pointer-events:none;opacity:0;transition:opacity .4s}
@@ -466,15 +499,26 @@
     </div>
   </div>
 
-  <!-- upgrade area (modal) -->
+  <!-- cinematic upgrade stage -->
   <div class="umodal" id="upgradeModal">
-    <div class="um-card">
+    <div class="um-stage">
       <button class="um-close" id="umClose">×</button>
-      <div class="um-head">
+      <div class="um-left">
+        <div class="um-glow"></div>
         <div class="um-ico" id="umIco"></div>
-        <div><h2 id="umName">Part</h2><div class="um-sub" id="umSub"></div></div>
+        <div class="um-cat" id="umSub"></div>
+        <h2 id="umName">Part</h2>
+        <div class="um-lvlbig"><span id="umLvl">0</span><i>/10</i></div>
+        <div class="um-statbar"><i id="umStatFill" style="width:0%"></i></div>
+        <div class="um-wallet">
+          <div><span>Budget</span><b id="umMoney">$0</b></div>
+          <div><span>Research</span><b id="umRP">0 RP</b></div>
+        </div>
       </div>
-      <div class="um-track" id="umTrack"></div>
+      <div class="um-right">
+        <div class="um-rhead">Upgrade Path — research to unlock, then install</div>
+        <div class="um-track" id="umTrack"></div>
+      </div>
     </div>
   </div>
 
@@ -1917,14 +1961,24 @@ function drawPie(){
 }
 
 let umKey=null;
+const STAT_COLOR={power:'#ff8a3c',brake:'#4d9bff',grip:'#5ef08a'};
 function openUpgrade(key){
   umKey=key;
   const p=PARTS.find(q=>q.key===key), dv=GAME.team.dev[key];
+  const stage=document.querySelector('.um-stage');
+  stage.style.setProperty('--ustat',STAT_COLOR[p.stat]||'#5a7cff');
   $('#umIco').innerHTML=partSVG(key);
   $('#umName').textContent=p.name;
-  $('#umSub').textContent=STAT_LABEL[p.stat]+' · '+dv.l+'/'+MAXLVL+' installed';
+  $('#umSub').textContent=STAT_LABEL[p.stat];
+  $('#umLvl').textContent=dv.l;
+  $('#umStatFill').style.width=(dv.l/MAXLVL*100)+'%';
+  refreshUmWallet();
   renderUpgradeTrack();
   $('#upgradeModal').classList.add('show');
+}
+function refreshUmWallet(){
+  $('#umMoney').textContent=fmtMoney(GAME.team.money);
+  $('#umRP').textContent=GAME.team.rp+' RP';
 }
 function renderUpgradeTrack(){
   const key=umKey,p=PARTS.find(q=>q.key===key),dv=GAME.team.dev[key];
@@ -1961,7 +2015,7 @@ function doResearch(lv){
   if(dv.r+1!==lv) return;
   if(GAME.team.rp<cost){toast('Not enough research points');return;}
   GAME.team.rp-=cost; dv.r=lv;
-  saveDev(); refreshWallet(); renderUpgradeTrack();
+  saveDev(); refreshWallet(); refreshUmWallet(); renderUpgradeTrack();
   toast('Researched stage '+lv);
 }
 function doInstall(lv){
@@ -1969,9 +2023,10 @@ function doInstall(lv){
   if(dv.l+1!==lv || dv.r<lv) return;
   if(GAME.team.money<cost){toast('Not enough budget');return;}
   GAME.team.money-=cost; dv.l=lv;
-  saveDev(); refreshWallet(); renderUpgradeTrack(); buildDevTab();
+  saveDev(); refreshWallet(); refreshUmWallet(); renderUpgradeTrack(); buildDevTab();
+  $('#umLvl').textContent=dv.l;
+  $('#umStatFill').style.width=(dv.l/MAXLVL*100)+'%';
   const p=PARTS.find(q=>q.key===umKey);
-  $('#umSub').textContent=STAT_LABEL[p.stat]+' · '+dv.l+'/'+MAXLVL+' installed';
   toast(p.name+' upgraded to stage '+lv);
 }
 function saveDev(){ GAME.team._refBySeg=GAME.team._refBySeg; writeSave({team:GAME.team}); }
