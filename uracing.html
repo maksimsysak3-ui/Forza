@@ -1070,6 +1070,17 @@ function buildTrack(scene, def){
     const d=(sideSign>0?woffL:woffR)[i], c=C[i%N], nl=nrmL[i];
     return new THREE.Vector3(c.x+nl.x*sideSign*d,0,c.z+nl.z*sideSign*d);
   }
+  // ---- pick the longest straight (no wrap) for the pit complex ----
+  let bestA=10,bestLen=0,curA=0;
+  for(let i=1;i<N;i++){
+    if(Math.abs(turnS[i])<0.004){ if(i-curA>bestLen){bestLen=i-curA;bestA=curA;} }
+    else curA=i;
+  }
+  const PIT_A=Math.max(6,bestA+Math.floor(bestLen*0.18));
+  const PIT_B=Math.min(N-6,bestA+Math.floor(bestLen*0.82));
+  const PIT_SIDE=-1;                 // pits sit on the right of the straight
+  const hasPit = (PIT_B-PIT_A)>40;
+
   function buildBarrier(sideSign){
     const sb=[0,Math.floor(N/3),Math.floor(2*N/3),N];
     for(let s=0;s<3;s++){
@@ -1081,7 +1092,11 @@ function buildTrack(scene, def){
         const u=(i-i0)/(N/26); wuv.push(u,1, u,0);
         cp.push(p.x,wallH,p.z, p.x,wallH+capH,p.z);
       }
-      for(let k=0;k<i1-i0;k++){const a=k*2;
+      for(let k=0;k<i1-i0;k++){
+        const gi=i0+k;
+        // open the wall where the pitlane meets the track
+        if(hasPit && sideSign===PIT_SIDE && gi>=PIT_A-4 && gi<PIT_B+4) continue;
+        const a=k*2;
         widx.push(a,a+1,a+2,a+1,a+3,a+2); cidx.push(a,a+1,a+2,a+1,a+3,a+2);}
       const wg=new THREE.BufferGeometry();
       wg.setAttribute('position',new THREE.Float32BufferAttribute(wp,3));
@@ -1096,6 +1111,7 @@ function buildTrack(scene, def){
     }
   }
   buildBarrier(1);buildBarrier(-1);
+  if(hasPit) buildPits(scene,C,nrmL,tan,N,HALF,PIT_A,PIT_B,PIT_SIDE,def);
 
   // expose for physics
   TRACK.C=C;TRACK.tan=tan;TRACK.nrmL=nrmL;TRACK.N=N;TRACK.HALF=HALF;
@@ -1128,6 +1144,59 @@ function globalNearestDist(px,pz){
 /* ======================================================================
    5.  Environment: ground, trees, mountains, sky
    ====================================================================== */
+/* pit complex along the main straight: a tarmac pitlane with tapered entry/
+   exit that joins the main road (the barrier opens here), a low pit wall and
+   a row of garage boxes in the team-track colour. */
+function buildPits(scene,C,nrmL,tan,N,HALF,A,B,side,def){
+  const laneOff=HALF+9.0, laneW=6.5, bldOff=HALF+18.0, TA=8;
+  const wrap=i=>((i%N)+N)%N;
+  // pitlane ribbon (tapered into the road at both ends)
+  const pos=[],uv=[],idx=[];
+  for(let k=-TA;k<=(B-A)+TA;k++){
+    const i=A+k; let t=1;
+    if(k<0)t=(k+TA)/TA; else if(k>(B-A))t=((B-A)+TA-k)/TA; t=clamp(t,0,1);
+    const off=lerp(HALF+1.0,laneOff,t), c=C[wrap(i)], nl=nrmL[wrap(i)];
+    const inner=off-laneW/2, outer=off+laneW/2;
+    pos.push(c.x+nl.x*side*inner,0.09,c.z+nl.z*side*inner,
+             c.x+nl.x*side*outer,0.09,c.z+nl.z*side*outer);
+    uv.push(0,k/4,1,k/4);
+  }
+  const rows=(B-A)+2*TA;
+  for(let k=0;k<rows;k++){const a=k*2;idx.push(a,a+1,a+2,a+1,a+3,a+2);}
+  const g=new THREE.BufferGeometry();
+  g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));
+  g.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));
+  const nn=new Float32Array(pos.length);for(let i=1;i<nn.length;i+=3)nn[i]=1;
+  g.setAttribute('normal',new THREE.BufferAttribute(nn,3));g.setIndex(idx);
+  const lane=new THREE.Mesh(g,new THREE.MeshStandardMaterial({map:tex('asphalt',asphaltTex),
+    roughness:.9,side:THREE.DoubleSide,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-2}));
+  lane.renderOrder=1;scene.add(lane);
+  // low white pit wall separating lane from track
+  const wp=[],widx=[];
+  for(let i=A;i<=B;i++){const c=C[wrap(i)],nl=nrmL[wrap(i)],o=HALF+3.4;
+    wp.push(c.x+nl.x*side*o,0,c.z+nl.z*side*o, c.x+nl.x*side*o,0.85,c.z+nl.z*side*o);}
+  for(let k=0;k<B-A;k++){const a=k*2;widx.push(a,a+1,a+2,a+1,a+3,a+2);}
+  const wg=new THREE.BufferGeometry();wg.setAttribute('position',new THREE.Float32BufferAttribute(wp,3));
+  wg.setIndex(widx);wg.computeVertexNormals();
+  scene.add(new THREE.Mesh(wg,new THREE.MeshStandardMaterial({color:0xe6eaf0,roughness:.7,side:THREE.DoubleSide})));
+  // garage boxes (pit building)
+  const boxes=Math.max(4,Math.floor((B-A)/14));
+  const wallMat=new THREE.MeshStandardMaterial({color:0x262c3a,metalness:.3,roughness:.7});
+  const roofMat=new THREE.MeshStandardMaterial({color:0x161b26,roughness:.9});
+  const doorMat=new THREE.MeshStandardMaterial({color:def.color,metalness:.45,roughness:.45});
+  for(let bI=0;bI<boxes;bI++){
+    const i=wrap(A+Math.floor((bI+0.5)/boxes*(B-A)));
+    const c=C[i],nl=nrmL[i],tn=tan[i];
+    const px=c.x+nl.x*side*bldOff, pz=c.z+nl.z*side*bldOff, ang=Math.atan2(tn.x,tn.z);
+    const box=new THREE.Mesh(new THREE.BoxGeometry(8,5,7),wallMat);
+    box.position.set(px,2.5,pz);box.rotation.y=ang;box.castShadow=box.receiveShadow=true;scene.add(box);
+    const roof=new THREE.Mesh(new THREE.BoxGeometry(8.4,0.5,7.4),roofMat);
+    roof.position.set(px,5.1,pz);roof.rotation.y=ang;scene.add(roof);
+    const door=new THREE.Mesh(new THREE.PlaneGeometry(5,3.4),doorMat);
+    door.position.set(px - nl.x*side*3.55, 1.9, pz - nl.z*side*3.55);
+    door.rotation.y=ang+Math.PI/2;scene.add(door);
+  }
+}
 function buildEnvironment(scene, env){
   const marsh = env==='marsh';
   // sky dome gradient
