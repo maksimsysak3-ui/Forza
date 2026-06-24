@@ -2085,7 +2085,7 @@ function part3D(key,color){
   const accMat=new THREE.MeshStandardMaterial({color:acc,metalness:.5,roughness:.34,emissive:acc.clone().multiplyScalar(.14)});
   const darkMat=new THREE.MeshStandardMaterial({color:0x222730,metalness:.5,roughness:.5});
   const lineMat=new THREE.MeshStandardMaterial({color:acc.clone().multiplyScalar(.5),metalness:.4,roughness:.5});
-  const TAUc=Math.PI*2;
+  const TAUc=Math.PI*2, HALFp=Math.PI/2;
   function rr(s,x,y,w,h,r){ s.moveTo(x+r,y);
     s.lineTo(x+w-r,y); s.quadraticCurveTo(x+w,y,x+w,y+r);
     s.lineTo(x+w,y+h-r); s.quadraticCurveTo(x+w,y+h,x+w-r,y+h);
@@ -2108,10 +2108,19 @@ function part3D(key,color){
       lines.push([[-0.82,0.78],[0.82,0.78]]);
       break;}
     case 'turbo':{
-      const s=disc(1.0); hole(s,0,0,0.3); solids.push({s,d:0.62,m:accMat});
-      const inl=disc(0.56); hole(inl,0,0,0.4); solids.push({s:inl,d:1.0,m:metalMat});
+      // volute housing ring + outlet + inlet, with a turbine WHEEL in the bore
+      const s=disc(1.0); hole(s,0,0,0.5); solids.push({s,d:0.62,m:metalMat});
+      const inl=disc(0.62); hole(inl,0,0,0.5); solids.push({s:inl,d:1.0,m:metalMat});
       const o=new THREE.Shape(); rr(o,0.74,-0.34,0.62,0.68,0.08); solids.push({s:o,d:0.56,m:metalMat});
-      const c=new THREE.Shape(); rr(c,-0.18,0.86,0.36,0.5,0.05); solids.push({s:c,d:0.5,m:metalMat});
+      // turbine wheel: hub + radial twisted blades + nut
+      const hub=new THREE.Mesh(new THREE.CylinderGeometry(0.17,0.17,0.7,20),accMat);
+      hub.rotation.x=HALFp;g.add(hub);
+      const nbl=11;
+      for(let i=0;i<nbl;i++){const a=i/nbl*TAUc;
+        const bl=new THREE.Mesh(new THREE.BoxGeometry(0.40,0.05,0.30),accMat);
+        bl.position.set(Math.cos(a)*0.30,Math.sin(a)*0.30,0);bl.rotation.z=a+0.7;g.add(bl);}
+      const nut=new THREE.Mesh(new THREE.CylinderGeometry(0.1,0.1,0.78,8),metalMat);
+      nut.rotation.x=HALFp;g.add(nut);
       break;}
     case 'radiator':{
       const s=new THREE.Shape(); rr(s,-1.25,-0.78,2.5,1.56,0.08); solids.push({s,d:0.34,m:darkMat});
@@ -2129,21 +2138,35 @@ function part3D(key,color){
       const cal=new THREE.Shape(); rr(cal,-0.36,0.74,0.72,0.52,0.1); solids.push({s:cal,d:0.56,m:accMat});
       break;}
     case 'shock':{
-      const body=new THREE.Shape(); rr(body,-0.32,-0.72,0.64,1.0,0.12); solids.push({s:body,d:0.5,m:darkMat});
-      const shaft=new THREE.Shape(); rr(shaft,-0.1,0.0,0.2,1.05,0.06); solids.push({s:shaft,d:0.34,m:metalMat});
-      const te=disc(0.2); hole(te,0,0,0.1); solids.push({s:te,d:0.3,m:metalMat,oy:1.2});
-      const be=disc(0.2); hole(be,0,0,0.1); solids.push({s:be,d:0.3,m:metalMat,oy:-1.16});
-      for(let i=0;i<7;i++){const y=-0.3+i*0.16; lines.push([[-0.34,y],[0.34,y+0.08]]);} // coil hint
+      // real damper: lower body, chrome shaft, coil spring helix, two eyelets
+      const body=new THREE.Mesh(new THREE.CylinderGeometry(0.3,0.3,0.95,24),darkMat);body.position.y=-0.52;g.add(body);
+      const shaft=new THREE.Mesh(new THREE.CylinderGeometry(0.1,0.1,1.5,16),metalMat);shaft.position.y=0.45;g.add(shaft);
+      const lowSeat=new THREE.Mesh(new THREE.CylinderGeometry(0.46,0.34,0.14,24),accMat);lowSeat.position.y=-0.06;g.add(lowSeat);
+      const topSeat=new THREE.Mesh(new THREE.CylinderGeometry(0.42,0.42,0.13,24),accMat);topSeat.position.y=1.02;g.add(topSeat);
+      const sp=[];for(let t=0;t<=TAUc*6;t+=0.14)sp.push(new THREE.Vector3(Math.cos(t)*0.44,(t/(TAUc*6))*1.06-0.02,Math.sin(t)*0.44));
+      g.add(new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(sp),180,0.072,8),accMat));
+      const te=new THREE.Mesh(new THREE.TorusGeometry(0.17,0.07,12,22),metalMat);te.position.y=1.28;g.add(te);
+      const be=new THREE.Mesh(new THREE.TorusGeometry(0.17,0.07,12,22),metalMat);be.position.y=-1.12;g.add(be);
       break;}
     case 'arm':{
+      // lower wishbone: A-shaped plate (concave inner edge), ball joint + 2 bushings
       const s=new THREE.Shape();
-      s.moveTo(-1.2,0.5); s.quadraticCurveTo(-0.2,0.42,0.42,0.16);
-      s.quadraticCurveTo(0.62,0.04,0.42,-0.16);
-      s.quadraticCurveTo(-0.2,-0.5,-1.2,-0.4);
-      s.quadraticCurveTo(-1.0,0.0,-1.2,0.5); s.closePath();
-      hole(s,0.34,0.0,0.2); hole(s,-1.06,0.34,0.12); hole(s,-1.06,-0.3,0.12);
-      solids.push({s,d:0.34,m:accMat});
-      const bj=disc(0.3); solids.push({s:bj,d:0.5,m:metalMat,ox:0.34});
+      s.moveTo(0.6,0.0);
+      s.quadraticCurveTo(0.05,0.2,-0.95,0.58);
+      s.quadraticCurveTo(-1.25,0.5,-1.18,0.22);
+      s.quadraticCurveTo(-0.55,0.05,-0.05,0.0);     // inner notch (top arm)
+      s.quadraticCurveTo(-0.55,-0.05,-1.18,-0.22);
+      s.quadraticCurveTo(-1.25,-0.5,-0.95,-0.58);
+      s.quadraticCurveTo(0.05,-0.2,0.6,0.0); s.closePath();
+      hole(s,0.36,0.0,0.17); hole(s,-1.0,0.38,0.13); hole(s,-1.0,-0.38,0.13);
+      solids.push({s,d:0.3,m:accMat});
+      // ball joint at apex
+      const bj=new THREE.Mesh(new THREE.SphereGeometry(0.27,20,16),metalMat);bj.position.set(0.4,0,0);g.add(bj);
+      const stud=new THREE.Mesh(new THREE.CylinderGeometry(0.1,0.1,0.4,14),darkMat);stud.position.set(0.4,0.32,0);g.add(stud);
+      // bushings (rubber sleeves) at the two mounts
+      [[-1.0,0.38],[-1.0,-0.38]].forEach(q=>{
+        const bsh=new THREE.Mesh(new THREE.CylinderGeometry(0.13,0.13,0.4,16),darkMat);
+        bsh.rotation.x=HALFp;bsh.position.set(q[0],q[1],0);g.add(bsh);});
       break;}
     case 'battery':{
       const s=new THREE.Shape();
@@ -2157,13 +2180,16 @@ function part3D(key,color){
       const lbl=new THREE.Shape(); rr(lbl,-0.7,-0.4,1.4,0.7,0.06); solids.push({s:lbl,d:1.04,m:accMat});
       break;}
     case 'injector':{
-      const s=new THREE.Shape();
-      s.moveTo(-0.28,0.88); s.lineTo(0.28,0.88); s.lineTo(0.28,0.46);
-      s.lineTo(0.5,0.46); s.lineTo(0.62,0.72); s.lineTo(0.8,0.62); s.lineTo(0.64,0.34); s.lineTo(0.28,0.22);
-      s.lineTo(0.28,-0.42); s.lineTo(0.15,-0.8); s.lineTo(0.07,-1.12); s.lineTo(-0.07,-1.12);
-      s.lineTo(-0.15,-0.8); s.lineTo(-0.28,-0.42); s.closePath();
-      solids.push({s,d:0.5,m:metalMat});
-      for(const yy of [0.0,-0.2,0.34]) lines.push(ringPts(0,yy,0.3));
+      // real injector: barrel body, top connector, tapered nozzle, o-rings
+      const bodyI=new THREE.Mesh(new THREE.CylinderGeometry(0.3,0.32,1.0,24),metalMat);bodyI.position.y=0.18;g.add(bodyI);
+      const top=new THREE.Mesh(new THREE.CylinderGeometry(0.36,0.3,0.3,24),darkMat);top.position.y=0.82;g.add(top);
+      const cap=new THREE.Mesh(new THREE.CylinderGeometry(0.2,0.2,0.16,18),metalMat);cap.position.y=1.02;g.add(cap);
+      const conn=new THREE.Mesh(new THREE.BoxGeometry(0.46,0.4,0.42),accMat);conn.position.set(0.42,0.86,0);conn.rotation.z=0.42;g.add(conn);
+      const conn2=new THREE.Mesh(new THREE.BoxGeometry(0.2,0.22,0.3),darkMat);conn2.position.set(0.66,1.0,0);conn2.rotation.z=0.42;g.add(conn2);
+      const band=new THREE.Mesh(new THREE.CylinderGeometry(0.36,0.36,0.16,24),accMat);band.position.y=-0.4;g.add(band);
+      const nozzle=new THREE.Mesh(new THREE.CylinderGeometry(0.13,0.27,0.46,20),metalMat);nozzle.position.y=-0.72;g.add(nozzle);
+      const tip=new THREE.Mesh(new THREE.CylinderGeometry(0.05,0.09,0.2,12),darkMat);tip.position.y=-1.02;g.add(tip);
+      [0.04,-0.14].forEach(yy=>{const o=new THREE.Mesh(new THREE.TorusGeometry(0.31,0.05,10,24),darkMat);o.position.y=yy;o.rotation.x=HALFp;g.add(o);});
       break;}
     default:{ const s=disc(1.0); solids.push({s,d:0.6,m:accMat}); }
   }
