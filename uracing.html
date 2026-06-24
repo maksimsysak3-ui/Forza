@@ -1252,7 +1252,7 @@ function buildEnvironment(scene, env){
   if(marsh){
     const wmat=new THREE.MeshStandardMaterial({color:0x2c4a52,metalness:.6,roughness:.25,transparent:true,opacity:.92});
     const C0=TRACK.C,N0=TRACK.N,WALL0=TRACK.WALL_OFF;
-    for(let k=0;k<14;k++){
+    for(let k=0;k<34;k++){
       const ai=(Math.random()*N0)|0, ang=Math.random()*TAU, rad=WALL0+20+Math.random()*260;
       const x=C0[ai].x+Math.cos(ang)*rad, z=C0[ai].z+Math.sin(ang)*rad;
       if(globalNearestDist(x,z)<WALL0+10) continue;
@@ -1265,14 +1265,27 @@ function buildEnvironment(scene, env){
   const mtGroup=new THREE.Group();
   const rng=()=>Math.random();
   if(marsh){
-    // NO mountains for the marsh circuit — a flat, low distant treeline instead
-    const ringR=1250;
-    for(let a=0;a<TAU;a+=TAU/120){
-      const r=ringR+(rng()-.5)*180, h=40+rng()*55, rad=40+rng()*60;
-      const m=new THREE.Mesh(new THREE.ConeGeometry(rad,h,5,1),
-        new THREE.MeshStandardMaterial({color:new THREE.Color().setHSL(.32+rng()*.04,.45,.20+rng()*.05),
-          roughness:1,flatShading:true,fog:true}));
-      m.position.set(Math.cos(a)*r,h/2-8,Math.sin(a)*r);mtGroup.add(m);
+    // NO mountains — a distant CITY SKYLINE silhouette wraps the marsh circuit
+    const ringR=1350;
+    const bmat=new THREE.MeshStandardMaterial({color:0x2b3344,roughness:.9,metalness:.1,fog:true});
+    const winMat=new THREE.MeshBasicMaterial({color:0xffe9a8,fog:true});
+    for(let a=0;a<TAU;a+=TAU/150){
+      const r=ringR+(rng()-.5)*240;
+      const w=40+rng()*70, d=40+rng()*70, h=70+rng()*340;
+      const bx=Math.cos(a)*r, bz=Math.sin(a)*r;
+      const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),bmat);
+      m.position.set(bx,h/2-6,bz);m.lookAt(0,h/2-6,0);mtGroup.add(m);
+      // a few lit windows
+      if(rng()<0.5){const win=new THREE.Mesh(new THREE.PlaneGeometry(w*0.7,h*0.7),winMat);
+        const off=new THREE.Vector3(bx,h/2,bz).normalize();
+        win.position.set(bx-off.x*(d/2+1),h/2-6,bz-off.z*(d/2+1));win.lookAt(0,h/2-6,0);
+        win.material=new THREE.MeshBasicMaterial({color:0x141d2e,fog:true});mtGroup.add(win);
+        // dotted windows
+        for(let wy=0;wy<6;wy++)for(let wx=0;wx<4;wx++){ if(rng()<0.4){
+          const dot=new THREE.Mesh(new THREE.PlaneGeometry(w*0.09,h*0.05),winMat);
+          dot.position.set(bx-off.x*(d/2+1.2)+(wx-1.5)*w*0.16, h*0.18+wy*h*0.12, bz-off.z*(d/2+1.2)+(wx-1.5)*0);
+          dot.lookAt(0,dot.position.y,0);mtGroup.add(dot);}}
+      }
     }
   } else {
     // alpine: snow-capped peaks
@@ -1299,7 +1312,7 @@ function buildEnvironment(scene, env){
   const coneG=new THREE.ConeGeometry(1.7,4.6,7);
   const coneM=new THREE.MeshStandardMaterial({color:0x2f6b2c,roughness:1,flatShading:true});
   const coneM2=new THREE.MeshStandardMaterial({color:0x255a26,roughness:1,flatShading:true});
-  const MAXT=520;
+  const MAXT=marsh?820:520;
   const trunks=new THREE.InstancedMesh(trunkG,trunkM,MAXT);
   const c1=new THREE.InstancedMesh(coneG,coneM,MAXT);
   const c2=new THREE.InstancedMesh(coneG,coneM2,MAXT);
@@ -2061,67 +2074,129 @@ function drawPie(){
 
 /* build a real 3D mesh from a part's traced strokes (sweep a tube along each
    stroke) so the outline renders as a rotating 3D model in the upgrade stage */
+/* Proper procedural 3D models of each part (the traced drawing is the shape
+   reference). Built from primitives -> thick, real, recognisable 3D parts. */
 function part3D(key,color){
-  const data=PART_SVG[key], g=new THREE.Group();
-  const raw=data.d.map(d=>(d.match(/-?\d+\.?\d*/g)||[]).map(Number));
-  let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9;
-  raw.forEach(n=>{for(let i=0;i<n.length;i+=2){x0=Math.min(x0,n[i]);x1=Math.max(x1,n[i]);y0=Math.min(y0,n[i+1]);y1=Math.max(y1,n[i+1]);}});
-  const cx=(x0+x1)/2,cy=(y0+y1)/2,sc=3.2/Math.max(x1-x0,y1-y0,1);
-  // strokes -> 2D point arrays (y flipped so it stands upright), de-duped
-  const strokes=raw.map(n=>{const p=[];let lx=1e9,ly=1e9;
-    for(let i=0;i<n.length;i+=2){const X=(n[i]-cx)*sc,Y=-(n[i+1]-cy)*sc;
-      if(Math.abs(X-lx)<1e-3&&Math.abs(Y-ly)<1e-3)continue;lx=X;ly=Y;p.push([X,Y]);}
-    return p;});
-  const area=p=>{let a=0;for(let i=0,j=p.length-1;i<p.length;j=i++)a+=p[j][0]*p[i][1]-p[i][0]*p[j][1];return a/2;};
-  const diag=p=>{let ax=1e9,ay=1e9,bx=-1e9,by=-1e9;p.forEach(q=>{ax=Math.min(ax,q[0]);ay=Math.min(ay,q[1]);bx=Math.max(bx,q[0]);by=Math.max(by,q[1]);});return Math.hypot(bx-ax,by-ay)||1;};
-  const closed=p=>p.length>=4 && Math.hypot(p[0][0]-p[p.length-1][0],p[0][1]-p[p.length-1][1])<0.34*diag(p);
-  const cent=p=>{let x=0,y=0;p.forEach(q=>{x+=q[0];y+=q[1];});return[x/p.length,y/p.length];};
-  const inside=(pt,poly)=>{let c=false;for(let i=0,j=poly.length-1;i<poly.length;j=i++){const xi=poly[i][0],yi=poly[i][1],xj=poly[j][0],yj=poly[j][1];
-    if(((yi>pt[1])!=(yj>pt[1]))&&(pt[0]<(xj-xi)*(pt[1]-yi)/((yj-yi)||1e-9)+xi))c=!c;}return c;};
+  const g=new THREE.Group();
+  const acc=new THREE.Color(color||0x9fb0ff);
+  const M={
+    metal:new THREE.MeshStandardMaterial({color:0x9098a3,metalness:.9,roughness:.32}),
+    dark :new THREE.MeshStandardMaterial({color:0x262b34,metalness:.6,roughness:.5}),
+    acc  :new THREE.MeshStandardMaterial({color:acc,metalness:.55,roughness:.34,emissive:acc.clone().multiplyScalar(.12)}),
+    rub  :new THREE.MeshStandardMaterial({color:0x14161b,roughness:.85,metalness:.1}),
+    chrome:new THREE.MeshStandardMaterial({color:0xc9d1da,metalness:1,roughness:.18}),
+    glass:new THREE.MeshStandardMaterial({color:0x163240,metalness:.6,roughness:.18,emissive:0x0a1a22,emissiveIntensity:.5}),
+  };
+  const C=(geo,mat,x,y,z,rx,ry,rz)=>{const m=new THREE.Mesh(geo,mat);
+    m.position.set(x||0,y||0,z||0);m.rotation.set(rx||0,ry||0,rz||0);m.castShadow=true;g.add(m);return m;};
+  const box=(w,h,d)=>new THREE.BoxGeometry(w,h,d);
+  const cyl=(rt,rb,h,s)=>new THREE.CylinderGeometry(rt,rb,h,s||24);
+  const tor=(r,t,s)=>new THREE.TorusGeometry(r,t,s||10,s2(r));
+  function s2(){return 28;}
+  const HALF=Math.PI/2;
 
-  const col=new THREE.Color(color||0xcdd7ff);
-  const solidMat=new THREE.MeshStandardMaterial({color:col,metalness:.45,roughness:.35,
-    emissive:col.clone().multiplyScalar(.10)});
-  const lineMat=new THREE.MeshStandardMaterial({color:col.clone().multiplyScalar(.55),metalness:.4,roughness:.5});
-  const depth=0.5;
-
-  // closed loops, largest first; biggest = outer bodies, smaller-inside = holes
-  let loops=strokes.map((p,idx)=>({p,idx,c:closed(p),A:Math.abs(area(p))}))
-                   .filter(o=>o.c && o.A>0.03).sort((a,b)=>b.A-a.A);
-  const used=new Set();
-  loops.forEach(L=>{
-    if(used.has(L.idx))return; used.add(L.idx);
-    let outer=L.p.slice();
-    if(area(outer)<0) outer.reverse();                 // outer must be CCW
-    const shape=new THREE.Shape(outer.map(q=>new THREE.Vector2(q[0],q[1])));
-    loops.forEach(H=>{
-      if(used.has(H.idx))return;
-      if(inside(cent(H.p),outer)){                      // a circle/loop inside -> a hole
-        let hp=H.p.slice(); if(area(hp)>0) hp.reverse();
-        shape.holes.push(new THREE.Path(hp.map(q=>new THREE.Vector2(q[0],q[1]))));
-        used.add(H.idx);
-      }
-    });
-    try{
-      const geo=new THREE.ExtrudeGeometry(shape,{depth,bevelEnabled:true,
-        bevelThickness:0.05,bevelSize:0.05,bevelSegments:1,steps:1});
-      geo.translate(0,0,-depth/2);geo.computeVertexNormals();
-      g.add(new THREE.Mesh(geo,solidMat));
-    }catch(e){}
-  });
-  // remaining open strokes = detail lines, raised slightly proud of the front face
-  strokes.forEach((p,idx)=>{
-    if(used.has(idx)||p.length<2)return;
-    try{
-      const pts=p.map(q=>new THREE.Vector3(q[0],q[1],depth/2+0.04));
-      const cu=new THREE.CatmullRomCurve3(pts,false,'catmullrom',0.2);
-      g.add(new THREE.Mesh(new THREE.TubeGeometry(cu,Math.max(8,pts.length*4),0.035,5,false),lineMat));
-    }catch(e){}
-  });
-  // recentre the assembled model
-  const box=new THREE.Box3().setFromObject(g),ctr=box.getCenter(new THREE.Vector3());
+  switch(key){
+    case 'engine':{
+      C(box(2.0,1.1,1.5),M.acc, 0,-0.1,0);                    // block
+      C(box(1.7,0.5,1.3),M.dark, 0,-0.78,0);                  // oil pan
+      C(box(2.05,0.45,1.55),M.metal, 0,0.62,0);               // valve cover
+      for(let i=0;i<4;i++){C(cyl(0.16,0.16,0.5,16),M.chrome,-0.66+i*0.44,1.0,0);    // spark plugs
+        C(cyl(0.07,0.07,0.28,10),M.dark,-0.66+i*0.44,1.28,0);}
+      C(box(0.9,0.4,1.4),M.dark,-1.25,0.1,0);                 // intake manifold
+      C(cyl(0.4,0.4,0.3,18),M.chrome, 1.15,-0.1,0, 0,0,HALF); // front pulley
+      C(cyl(0.18,0.18,0.4,12),M.dark,1.45,-0.1,0,0,0,HALF);
+      // exhaust headers (curved tubes)
+      for(let i=0;i<4;i++){const pts=[new THREE.Vector3(-0.66+i*0.44,0.2,0.78),
+        new THREE.Vector3(-0.66+i*0.44,-0.1,1.1),new THREE.Vector3(-0.2,-0.4,1.2),new THREE.Vector3(0.2,-0.4,1.25)];
+        C(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts),20,0.09,8),M.metal);}
+      C(box(0.5,0.2,0.3),M.metal,-1.25,-0.5,0.85);            // mount
+      C(box(0.5,0.2,0.3),M.metal,1.0,-0.5,-0.85);
+      break;}
+    case 'turbo':{
+      C(cyl(1.0,1.0,0.7,40),M.acc, 0,0,0, HALF,0,0);          // volute housing
+      C(tor(0.95,0.34,24),M.acc, 0,0,0, 0,0,0);               // snail outer
+      C(cyl(0.55,0.55,0.95,30),M.dark, 0,0,0, HALF,0,0);      // center hub
+      // compressor inlet
+      C(cyl(0.5,0.62,0.7,28),M.chrome, 0,0,0.85, HALF,0,0);
+      C(tor(0.55,0.07,20),M.metal, 0,0,1.15, 0,0,0);
+      // turbine exhaust outlet (square flange + pipe)
+      C(box(0.7,0.7,0.5),M.metal, 1.15,0.2,0);
+      C(cyl(0.32,0.32,0.6,18),M.dark, 1.5,0.2,0, 0,0,HALF);
+      // oil feed line
+      C(cyl(0.05,0.05,0.7,8),M.chrome, 0,0.95,-0.2);
+      break;}
+    case 'radiator':{
+      C(box(2.2,1.5,0.18),M.dark, 0,0,0);                     // core
+      for(let i=0;i<11;i++) C(box(2.05,0.06,0.26),M.metal, 0,-0.62+i*0.125,0); // fins
+      C(box(2.35,0.26,0.42),M.acc, 0,0.86,0);                 // top tank
+      C(box(2.35,0.26,0.42),M.acc, 0,-0.86,0);                // bottom tank
+      C(cyl(0.16,0.16,0.18,16),M.chrome, 0.7,1.05,0);         // filler cap
+      C(cyl(0.13,0.13,0.5,14),M.dark, -1.05,0.86,0, 0,0,HALF);// hose inlet
+      C(cyl(0.13,0.13,0.5,14),M.dark, 1.05,-0.86,0, 0,0,HALF);// hose outlet
+      for(const sx of [-1,1])for(const sy of [-1,1]) C(box(0.18,0.18,0.5),M.metal, sx*1.18,sy*0.7,0); // tabs
+      break;}
+    case 'brakes':{
+      C(cyl(1.15,1.15,0.16,48),M.chrome, 0,0,0, HALF,0,0);    // disc
+      C(cyl(1.16,1.16,0.05,48),M.metal, 0,0,0.085, HALF,0,0);
+      C(cyl(0.42,0.42,0.32,30),M.dark, 0,0,0, HALF,0,0);      // hat/hub
+      C(cyl(0.18,0.18,0.4,18),M.metal, 0,0,0, HALF,0,0);
+      for(let i=0;i<5;i++){const a=i/5*TAU; C(cyl(0.07,0.07,0.4,10),M.dark, Math.cos(a)*0.3,Math.sin(a)*0.3,0, HALF,0,0);} // lug holes
+      for(let i=0;i<28;i++){const a=i/28*TAU; C(cyl(0.05,0.05,0.22,8),M.dark, Math.cos(a)*0.82,Math.sin(a)*0.82,0, HALF,0,0);} // drilled holes
+      // caliper hugging the top edge
+      const cal=C(box(0.55,0.7,0.55),M.acc, 0,1.0,0);
+      C(box(0.35,0.55,0.62),M.dark, 0,1.0,0);
+      C(cyl(0.08,0.08,0.6,10),M.chrome, 0,0.7,0, 0,0,HALF);   // bleed bolt
+      break;}
+    case 'shock':{
+      C(cyl(0.08,0.08,2.0,12),M.chrome, 0,0.2,0);             // shaft
+      C(cyl(0.34,0.34,0.9,20),M.dark, 0,-0.65,0);             // body
+      C(cyl(0.4,0.34,0.18,20),M.acc, 0,-0.18,0);              // seat
+      // coil spring (helix)
+      const sp=[];for(let t=0;t<=TAU*5;t+=0.18) sp.push(new THREE.Vector3(Math.cos(t)*0.46,(t/(TAU*5))*1.5-0.45,Math.sin(t)*0.46));
+      C(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(sp),140,0.08,8),M.acc);
+      C(tor(0.16,0.07,14),M.metal, 0,1.28,0, HALF,0,0);       // top eye
+      C(tor(0.16,0.07,14),M.metal, 0,-1.18,0, HALF,0,0);      // bottom eye
+      C(cyl(0.07,0.07,0.3,10),M.chrome, 0,-1.18,0);
+      break;}
+    case 'arm':{
+      // A-arm / wishbone: two tapered limbs to a ball joint
+      const limb=(ax,az)=>{const pts=[new THREE.Vector3(ax,0,az),new THREE.Vector3(ax*0.4,0.05,az*0.4),new THREE.Vector3(0,0.1,0)];
+        C(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts),24,0.16,10),M.acc);};
+      limb(-1.1,0.7); limb(-1.1,-0.7);
+      C(new THREE.SphereGeometry(0.28,20,16),M.chrome, 0.15,0.12,0);  // ball joint
+      C(cyl(0.12,0.12,0.4,14),M.dark, 0.15,0.42,0);                   // stud
+      for(const az of [0.7,-0.7]){C(tor(0.22,0.1,16),M.metal, -1.1,0,az, 0,HALF,0); // bushings
+        C(cyl(0.12,0.12,0.34,14),M.rub, -1.1,0,az, HALF,0,0);}
+      break;}
+    case 'battery':{
+      C(box(2.0,1.5,1.25),M.dark, 0,0,0);                     // case
+      C(box(2.02,0.22,1.27),M.acc, 0,0.8,0);                  // top lid
+      for(let i=0;i<3;i++) C(cyl(0.13,0.13,0.12,16),M.dark, -0.5+i*0.5,0.96,0.3); // cell caps
+      C(cyl(0.14,0.14,0.28,16),M.acc, -0.7,1.05,-0.35);       // + terminal
+      C(cyl(0.14,0.14,0.28,16),M.chrome, 0.7,1.05,-0.35);     // - terminal
+      C(box(1.5,0.7,0.02),M.acc, 0,0.05,0.64);                // label panel
+      C(box(0.3,0.3,0.02),M.metal, 0,0.05,0.66);              // bolt logo plate
+      break;}
+    case 'injector':{
+      C(cyl(0.3,0.34,1.1,24),M.metal, 0,0.2,0);               // body
+      C(cyl(0.34,0.4,0.25,24),M.dark, 0,0.78,0);              // top collar
+      C(cyl(0.4,0.4,0.18,24),M.acc, 0,-0.42,0);               // mid band
+      C(cyl(0.14,0.26,0.5,18),M.chrome, 0,-0.85,0);           // nozzle taper
+      C(cyl(0.06,0.06,0.18,10),M.dark, 0,-1.15,0);            // pintle
+      for(const yy of [-0.2,0.0,0.5]) C(tor(0.32,0.06,16),M.rub, 0,yy,0, HALF,0,0); // o-rings
+      // electrical connector clip
+      C(box(0.42,0.42,0.4),M.acc, 0.42,0.85,0, 0,0,0.4);
+      C(box(0.18,0.2,0.3),M.dark, 0.66,1.02,0, 0,0,0.4);
+      break;}
+    default:
+      C(new THREE.IcosahedronGeometry(1.2,1),M.acc);
+  }
+  // centre + scale to fit the viewer
+  const bb=new THREE.Box3().setFromObject(g), ctr=bb.getCenter(new THREE.Vector3()), sz=bb.getSize(new THREE.Vector3());
+  const k=3.0/Math.max(sz.x,sz.y,sz.z,0.001);
   g.children.forEach(m=>m.position.sub(ctr));
-  g.rotation.x=-0.12;
+  g.scale.setScalar(k);
+  g.rotation.x=-0.18;
   return g;
 }
 const PartViewer=(function(){
