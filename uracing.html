@@ -28,32 +28,43 @@
   #menu .bgimg{position:absolute;inset:0;background-size:cover;background-position:center;
     filter:saturate(1.05) contrast(1.02);}
   #menu .vignette{position:absolute;inset:0;
-    background:radial-gradient(120% 90% at 50% 35%,transparent 40%,rgba(0,0,0,.55) 100%),
-      linear-gradient(to bottom,rgba(0,0,0,.25),rgba(0,0,0,.0) 30%,rgba(0,0,0,.85));}
-  .menu-inner{position:absolute;left:50%;bottom:7vh;transform:translateX(-50%);z-index:2;
-    display:flex;flex-direction:column;align-items:center;gap:11px;width:min(380px,84vw)}
-  .menu-tag{font-size:10px;letter-spacing:.42em;color:#aab6e0;text-transform:uppercase;
-    margin-bottom:6px;opacity:.85}
+    background:radial-gradient(130% 100% at 50% 30%,rgba(8,12,24,0) 30%,rgba(3,5,11,.72) 100%),
+      linear-gradient(to bottom,rgba(3,5,11,.55),rgba(3,5,11,0) 24%,rgba(3,5,11,.92));}
+  /* sharp wordmark brand block, top-left anchored */
+  .menu-brand{position:absolute;left:6vw;top:8vh;z-index:2}
+  .mb-word{font-size:clamp(46px,9vw,118px);font-weight:900;line-height:.86;
+    letter-spacing:-.02em;color:#f4f7ff;text-transform:uppercase;
+    text-shadow:0 6px 40px rgba(0,0,0,.6);
+    background:linear-gradient(180deg,#ffffff,#c3ccea);-webkit-background-clip:text;background-clip:text;
+    -webkit-text-fill-color:transparent;}
+  .mb-line{height:4px;width:min(420px,52vw);margin:14px 0 10px;
+    background:linear-gradient(90deg,#ff2d2d,#ff7a3c 60%,rgba(255,120,60,0));
+    clip-path:polygon(0 0,100% 0,calc(100% - 8px) 100%,0 100%)}
+  .mb-tag{font-size:12px;letter-spacing:.5em;color:#9fb0e6;text-transform:uppercase;font-weight:700}
+  .menu-inner{position:absolute;left:6vw;bottom:8vh;z-index:2;
+    display:flex;flex-direction:column;align-items:stretch;gap:10px;width:min(360px,82vw)}
   /* racing-styled buttons: angled edge, sheen sweep, glow on hover */
-  .btn{cursor:pointer;border:none;width:100%;padding:16px 20px;
-    font-size:15px;font-weight:800;letter-spacing:.14em;color:#fff;text-transform:uppercase;
-    transition:transform .14s cubic-bezier(.2,.8,.2,1),box-shadow .25s,filter .2s,background .25s;
-    position:relative;overflow:hidden;
-    clip-path:polygon(0 0,100% 0,100% 100%,14px 100%,0 calc(100% - 14px));
-    background:linear-gradient(180deg,#1b2236,#0e1320);
-    border:1px solid rgba(150,170,255,.16);box-shadow:0 10px 26px rgba(0,0,0,.45)}
-  .btn::before{content:"";position:absolute;top:0;left:-120%;width:60%;height:100%;
-    background:linear-gradient(100deg,transparent,rgba(255,255,255,.18),transparent);
-    transform:skewX(-18deg);transition:left .5s ease}
-  .btn:hover::before{left:130%}
-  .btn:hover{transform:translateY(-2px)}
-  .btn:active{transform:translateY(0) scale(.99)}
-  .btn.primary{background:linear-gradient(180deg,#ff4d4d,#c10f0f);
-    border:1px solid rgba(255,140,140,.5);box-shadow:0 12px 34px rgba(255,40,40,.4)}
-  .btn.primary:hover{box-shadow:0 16px 44px rgba(255,50,50,.55);filter:brightness(1.08)}
-  .btn.ghost{background:linear-gradient(180deg,rgba(34,42,66,.65),rgba(16,21,36,.65));
-    backdrop-filter:blur(4px)}
-  .btn.ghost:hover{border-color:rgba(150,170,255,.5);box-shadow:0 14px 34px rgba(40,80,255,.3)}
+  .btn{cursor:pointer;border:none;width:100%;padding:15px 22px;
+    font-size:14px;font-weight:800;letter-spacing:.18em;color:#eaf0ff;text-transform:uppercase;
+    transition:transform .12s cubic-bezier(.2,.8,.2,1),box-shadow .22s,filter .18s,border-color .2s,background .22s;
+    position:relative;overflow:hidden;text-align:left;
+    clip-path:polygon(0 0,100% 0,100% 100%,18px 100%,0 calc(100% - 18px));
+    background:linear-gradient(180deg,rgba(22,28,46,.92),rgba(11,15,26,.92));
+    border:1px solid rgba(150,170,255,.14);border-left:3px solid rgba(150,170,255,.32);
+    box-shadow:0 8px 22px rgba(0,0,0,.5)}
+  .btn::before{content:"";position:absolute;top:0;left:-120%;width:55%;height:100%;
+    background:linear-gradient(100deg,transparent,rgba(255,255,255,.14),transparent);
+    transform:skewX(-18deg);transition:left .55s ease}
+  .btn:hover::before{left:135%}
+  .btn:hover{transform:translateX(4px)}
+  .btn:active{transform:translateX(2px) scale(.995)}
+  .btn.primary{color:#fff;background:linear-gradient(180deg,#ff3b3b,#bf0d0d);
+    border:1px solid rgba(255,150,150,.45);border-left:3px solid #ffd0d0;
+    box-shadow:0 10px 30px rgba(255,40,40,.34)}
+  .btn.primary:hover{box-shadow:0 14px 40px rgba(255,50,50,.5);filter:brightness(1.06)}
+  .btn.ghost{background:linear-gradient(180deg,rgba(26,32,52,.7),rgba(13,17,30,.7));
+    border-left:3px solid rgba(150,170,255,.28);backdrop-filter:blur(4px)}
+  .btn.ghost:hover{border-left-color:#7da0ff;border-color:rgba(150,170,255,.4);box-shadow:0 12px 30px rgba(40,80,255,.26)}
   .btn .k{position:absolute;right:16px;top:50%;transform:translateY(-50%);
     font-size:11px;opacity:.5;font-weight:700}
   .hint{font-size:12px;color:#8b98c4;margin-top:8px;letter-spacing:.06em}
@@ -61,10 +72,13 @@
   /* opening swoop: logo + UI sweep in from the side, settle */
   @keyframes swoopBg{0%{transform:scale(1.35) translateX(8%);opacity:0}
     60%{opacity:1}100%{transform:scale(1.08) translateX(0);opacity:1}}
-  @keyframes swoopUp{0%{transform:translateX(-50%) translateY(7vh) scale(.96);opacity:0;filter:blur(6px)}
-    100%{transform:translateX(-50%) translateY(0) scale(1);opacity:1;filter:blur(0)}}
+  @keyframes swoopUp{0%{transform:translateY(5vh);opacity:0;filter:blur(6px)}
+    100%{transform:translateY(0);opacity:1;filter:blur(0)}}
+  @keyframes swoopBrand{0%{transform:translateX(-4vw);opacity:0;filter:blur(8px)}
+    100%{transform:translateX(0);opacity:1;filter:blur(0)}}
   #menu.swoop .bgimg{animation:swoopBg 1.5s cubic-bezier(.16,.84,.3,1) both}
-  #menu.swoop .menu-inner{animation:swoopUp 1.0s cubic-bezier(.16,.84,.3,1) .35s both}
+  #menu.swoop .menu-brand{animation:swoopBrand 1.1s cubic-bezier(.16,.84,.3,1) .15s both}
+  #menu.swoop .menu-inner{animation:swoopUp 1.0s cubic-bezier(.16,.84,.3,1) .45s both}
 
   /* ---------- Team creation ---------- */
   .panel{position:relative;z-index:2;width:min(560px,92vw);
@@ -471,8 +485,12 @@
   <div id="menu" class="screen">
     <div class="bgimg" id="menubg"></div>
     <div class="vignette"></div>
+    <div class="menu-brand">
+      <div class="mb-word">URACING</div>
+      <div class="mb-line"></div>
+      <div class="mb-tag">UNLIMITED · SEASON 01</div>
+    </div>
     <div class="menu-inner">
-      <div class="menu-tag">UNLIMITED · SEASON 01</div>
       <button class="btn primary" id="btnPlay">RACE<span class="k">↵</span></button>
       <button class="btn ghost" id="btnNewTeam">NEW TEAM</button>
       <button class="btn ghost" id="btnReset">CLEAR SAVE</button>
@@ -2054,9 +2072,47 @@ function refreshTeamPreview(){
 }
 
 /* ----------  Buttons  ---------- */
+let _menuBgURI=null;
+function menuBgURI(){
+  if(_menuBgURI) return _menuBgURI;
+  const S=1024, c=document.createElement('canvas'); c.width=S; c.height=Math.round(S*0.56);
+  const H=c.height, x=c.getContext('2d');
+  // deep cinematic gradient
+  let g=x.createLinearGradient(0,0,S,H);
+  g.addColorStop(0,'#0a1226'); g.addColorStop(.5,'#0b1020'); g.addColorStop(1,'#05070e');
+  x.fillStyle=g; x.fillRect(0,0,S,H);
+  // soft red rim-light from right
+  g=x.createRadialGradient(S*0.92,H*0.5,0,S*0.92,H*0.5,S*0.7);
+  g.addColorStop(0,'rgba(255,60,40,.20)'); g.addColorStop(1,'rgba(255,60,40,0)');
+  x.fillStyle=g; x.fillRect(0,0,S,H);
+  // blue rim from left
+  g=x.createRadialGradient(S*0.06,H*0.3,0,S*0.06,H*0.3,S*0.6);
+  g.addColorStop(0,'rgba(60,120,255,.16)'); g.addColorStop(1,'rgba(60,120,255,0)');
+  x.fillStyle=g; x.fillRect(0,0,S,H);
+  // diagonal speed-lines
+  x.save(); x.globalCompositeOperation='lighter';
+  for(let i=0;i<60;i++){
+    const y=Math.random()*H, len=80+Math.random()*420, a=0.015+Math.random()*0.05;
+    const lg=x.createLinearGradient(0,y,len,y-len*0.45);
+    lg.addColorStop(0,'rgba(150,180,255,0)'); lg.addColorStop(.5,`rgba(180,200,255,${a})`); lg.addColorStop(1,'rgba(150,180,255,0)');
+    x.strokeStyle=lg; x.lineWidth=1+Math.random()*1.6; x.beginPath();
+    const sx=Math.random()*S; x.moveTo(sx,y); x.lineTo(sx+len,y-len*0.45); x.stroke();
+  }
+  x.restore();
+  // faint corner grid
+  x.strokeStyle='rgba(120,150,230,.05)'; x.lineWidth=1;
+  for(let gx=0;gx<S;gx+=64){x.beginPath();x.moveTo(gx,0);x.lineTo(gx,H);x.stroke();}
+  for(let gy=0;gy<H;gy+=64){x.beginPath();x.moveTo(0,gy);x.lineTo(S,gy);x.stroke();}
+  // bottom darkening
+  g=x.createLinearGradient(0,H*0.4,0,H);
+  g.addColorStop(0,'rgba(3,5,11,0)'); g.addColorStop(1,'rgba(3,5,11,.96)');
+  x.fillStyle=g; x.fillRect(0,0,S,H);
+  _menuBgURI=c.toDataURL('image/jpeg',0.85);
+  return _menuBgURI;
+}
 function refreshMenu(){
   const s=loadSave();
-  $('#menubg').style.backgroundImage=`url(${LOGO_URI})`;
+  $('#menubg').style.backgroundImage=`url(${menuBgURI()})`;
   if(s&&s.team){
     GAME.team=s.team;
     $('#saveHint').textContent=`Welcome back, ${s.team.name} — save loaded`;
