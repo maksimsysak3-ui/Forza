@@ -2063,30 +2063,64 @@ function drawPie(){
    stroke) so the outline renders as a rotating 3D model in the upgrade stage */
 function part3D(key,color){
   const data=PART_SVG[key], g=new THREE.Group();
-  const strokes=data.d.map(d=>(d.match(/-?\d+\.?\d*/g)||[]).map(Number));
+  const raw=data.d.map(d=>(d.match(/-?\d+\.?\d*/g)||[]).map(Number));
   let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9;
-  strokes.forEach(n=>{for(let i=0;i<n.length;i+=2){x0=Math.min(x0,n[i]);x1=Math.max(x1,n[i]);y0=Math.min(y0,n[i+1]);y1=Math.max(y1,n[i+1]);}});
-  const cx=(x0+x1)/2,cy=(y0+y1)/2,sc=3.4/Math.max(x1-x0,y1-y0,1);
+  raw.forEach(n=>{for(let i=0;i<n.length;i+=2){x0=Math.min(x0,n[i]);x1=Math.max(x1,n[i]);y0=Math.min(y0,n[i+1]);y1=Math.max(y1,n[i+1]);}});
+  const cx=(x0+x1)/2,cy=(y0+y1)/2,sc=3.2/Math.max(x1-x0,y1-y0,1);
+  // strokes -> 2D point arrays (y flipped so it stands upright), de-duped
+  const strokes=raw.map(n=>{const p=[];let lx=1e9,ly=1e9;
+    for(let i=0;i<n.length;i+=2){const X=(n[i]-cx)*sc,Y=-(n[i+1]-cy)*sc;
+      if(Math.abs(X-lx)<1e-3&&Math.abs(Y-ly)<1e-3)continue;lx=X;ly=Y;p.push([X,Y]);}
+    return p;});
+  const area=p=>{let a=0;for(let i=0,j=p.length-1;i<p.length;j=i++)a+=p[j][0]*p[i][1]-p[i][0]*p[j][1];return a/2;};
+  const diag=p=>{let ax=1e9,ay=1e9,bx=-1e9,by=-1e9;p.forEach(q=>{ax=Math.min(ax,q[0]);ay=Math.min(ay,q[1]);bx=Math.max(bx,q[0]);by=Math.max(by,q[1]);});return Math.hypot(bx-ax,by-ay)||1;};
+  const closed=p=>p.length>=4 && Math.hypot(p[0][0]-p[p.length-1][0],p[0][1]-p[p.length-1][1])<0.34*diag(p);
+  const cent=p=>{let x=0,y=0;p.forEach(q=>{x+=q[0];y+=q[1];});return[x/p.length,y/p.length];};
+  const inside=(pt,poly)=>{let c=false;for(let i=0,j=poly.length-1;i<poly.length;j=i++){const xi=poly[i][0],yi=poly[i][1],xj=poly[j][0],yj=poly[j][1];
+    if(((yi>pt[1])!=(yj>pt[1]))&&(pt[0]<(xj-xi)*(pt[1]-yi)/((yj-yi)||1e-9)+xi))c=!c;}return c;};
+
   const col=new THREE.Color(color||0xcdd7ff);
-  const mat=new THREE.MeshStandardMaterial({color:col,metalness:.6,roughness:.3,
-    emissive:col.clone().multiplyScalar(.18)});
-  strokes.forEach(n=>{
-    const pts=[];let lx=1e9,ly=1e9;
-    for(let i=0;i<n.length;i+=2){
-      const X=(n[i]-cx)*sc, Y=-(n[i+1]-cy)*sc;
-      if(Math.abs(X-lx)<1e-4&&Math.abs(Y-ly)<1e-4)continue; lx=X;ly=Y;
-      pts.push(new THREE.Vector3(X,Y,0));
-    }
-    if(pts.length<2)return;
+  const solidMat=new THREE.MeshStandardMaterial({color:col,metalness:.45,roughness:.35,
+    emissive:col.clone().multiplyScalar(.10)});
+  const lineMat=new THREE.MeshStandardMaterial({color:col.clone().multiplyScalar(.55),metalness:.4,roughness:.5});
+  const depth=0.5;
+
+  // closed loops, largest first; biggest = outer bodies, smaller-inside = holes
+  let loops=strokes.map((p,idx)=>({p,idx,c:closed(p),A:Math.abs(area(p))}))
+                   .filter(o=>o.c && o.A>0.03).sort((a,b)=>b.A-a.A);
+  const used=new Set();
+  loops.forEach(L=>{
+    if(used.has(L.idx))return; used.add(L.idx);
+    let outer=L.p.slice();
+    if(area(outer)<0) outer.reverse();                 // outer must be CCW
+    const shape=new THREE.Shape(outer.map(q=>new THREE.Vector2(q[0],q[1])));
+    loops.forEach(H=>{
+      if(used.has(H.idx))return;
+      if(inside(cent(H.p),outer)){                      // a circle/loop inside -> a hole
+        let hp=H.p.slice(); if(area(hp)>0) hp.reverse();
+        shape.holes.push(new THREE.Path(hp.map(q=>new THREE.Vector2(q[0],q[1]))));
+        used.add(H.idx);
+      }
+    });
     try{
-      const cu=new THREE.CatmullRomCurve3(pts,false,'catmullrom',0.25);
-      const tube=new THREE.TubeGeometry(cu,Math.max(10,pts.length*5),0.055,7,false);
-      g.add(new THREE.Mesh(tube,mat));
-      // little spheres at the ends round it off
-      [pts[0],pts[pts.length-1]].forEach(pp=>{
-        const s=new THREE.Mesh(new THREE.SphereGeometry(0.055,8,8),mat);s.position.copy(pp);g.add(s);});
+      const geo=new THREE.ExtrudeGeometry(shape,{depth,bevelEnabled:true,
+        bevelThickness:0.05,bevelSize:0.05,bevelSegments:1,steps:1});
+      geo.translate(0,0,-depth/2);geo.computeVertexNormals();
+      g.add(new THREE.Mesh(geo,solidMat));
     }catch(e){}
   });
+  // remaining open strokes = detail lines, raised slightly proud of the front face
+  strokes.forEach((p,idx)=>{
+    if(used.has(idx)||p.length<2)return;
+    try{
+      const pts=p.map(q=>new THREE.Vector3(q[0],q[1],depth/2+0.04));
+      const cu=new THREE.CatmullRomCurve3(pts,false,'catmullrom',0.2);
+      g.add(new THREE.Mesh(new THREE.TubeGeometry(cu,Math.max(8,pts.length*4),0.035,5,false),lineMat));
+    }catch(e){}
+  });
+  // recentre the assembled model
+  const box=new THREE.Box3().setFromObject(g),ctr=box.getCenter(new THREE.Vector3());
+  g.children.forEach(m=>m.position.sub(ctr));
   g.rotation.x=-0.12;
   return g;
 }
