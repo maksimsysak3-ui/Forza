@@ -1187,23 +1187,42 @@ function buildPits(scene,C,nrmL,tan,N,HALF,A,B,side,def){
   const wg=new THREE.BufferGeometry();wg.setAttribute('position',new THREE.Float32BufferAttribute(wp,3));
   wg.setIndex(widx);wg.computeVertexNormals();
   scene.add(new THREE.Mesh(wg,new THREE.MeshStandardMaterial({color:0xe6eaf0,roughness:.7,side:THREE.DoubleSide})));
-  // garage boxes (pit building)
-  const boxes=Math.max(4,Math.floor((B-A)/14));
-  const wallMat=new THREE.MeshStandardMaterial({color:0x262c3a,metalness:.3,roughness:.7});
-  const roofMat=new THREE.MeshStandardMaterial({color:0x161b26,roughness:.9});
-  const doorMat=new THREE.MeshStandardMaterial({color:def.color,metalness:.45,roughness:.45});
-  for(let bI=0;bI<boxes;bI++){
-    const i=wrap(A+Math.floor((bI+0.5)/boxes*(B-A)));
-    const c=C[i],nl=nrmL[i],tn=tan[i];
-    const px=c.x+nl.x*side*bldOff, pz=c.z+nl.z*side*bldOff, ang=Math.atan2(tn.x,tn.z);
-    const box=new THREE.Mesh(new THREE.BoxGeometry(8,5,7),wallMat);
-    box.position.set(px,2.5,pz);box.rotation.y=ang;box.castShadow=box.receiveShadow=true;scene.add(box);
-    const roof=new THREE.Mesh(new THREE.BoxGeometry(8.4,0.5,7.4),roofMat);
-    roof.position.set(px,5.1,pz);roof.rotation.y=ang;scene.add(roof);
-    const door=new THREE.Mesh(new THREE.PlaneGeometry(5,3.4),doorMat);
-    door.position.set(px - nl.x*side*3.55, 1.9, pz - nl.z*side*3.55);
-    door.rotation.y=ang+Math.PI/2;scene.add(door);
+  // ---- detailed pit building: bays, roller doors, canopy, upper window strip ----
+  const wallMat =new THREE.MeshStandardMaterial({color:0x2a313f,metalness:.25,roughness:.75});
+  const slabMat =new THREE.MeshStandardMaterial({color:0x9aa0ab,roughness:.85});
+  const roofMat =new THREE.MeshStandardMaterial({color:0x12161f,roughness:.9,metalness:.2});
+  const doorMat =new THREE.MeshStandardMaterial({color:def.color,metalness:.5,roughness:.4});
+  const pillarMat=new THREE.MeshStandardMaterial({color:0xe8ebf0,roughness:.6});
+  const glassMat=new THREE.MeshStandardMaterial({color:0x163240,metalness:.6,roughness:.18,
+    emissive:0x0a1a22,emissiveIntensity:.5});
+  const grp=new THREE.Group();
+  function place(i,off,cy,alongLen,perpDepth,h,mat){
+    const c=C[i],nl=nrmL[i],tn=tan[i],ang=Math.atan2(tn.x,tn.z);
+    const m=new THREE.Mesh(new THREE.BoxGeometry(perpDepth,h,alongLen),mat);
+    m.position.set(c.x+nl.x*side*off, cy, c.z+nl.z*side*off);m.rotation.y=ang;
+    m.castShadow=m.receiveShadow=true;grp.add(m);return m;
   }
+  const bays=Math.max(5,Math.floor((B-A)/12));
+  const idxs=[];for(let bI=0;bI<bays;bI++) idxs.push(wrap(A+Math.round((bI+0.5)/bays*(B-A))));
+  // along-track length of one bay (from neighbour spacing)
+  const bayLen=C[idxs[0]].distanceTo(C[idxs[Math.min(1,bays-1)]])||10;
+  const BL=Math.max(7,bayLen*1.02);
+  // continuous slab apron + back wall + roof + upper floor span the whole row
+  for(let bI=0;bI<bays;bI++){
+    const i=idxs[bI];
+    place(i,bldOff-1.0,0.06,BL,9,0.12,slabMat);     // apron slab
+    place(i,bldOff+2.0,4.2,BL,1.0,8.4,wallMat);     // tall back wall
+    place(i,bldOff-2.2,4.35,BL,8.6,0.35,roofMat);   // canopy roof over the bay
+    place(i,bldOff+0.2,1.85,BL*0.96,4.4,3.6,wallMat);// bay surround (recess walls)
+    const door=place(i,bldOff-2.05,1.85,BL*0.74,0.18,3.2,doorMat); // roller door
+    // door ribs
+    for(let r=0;r<5;r++) place(i,bldOff-2.16,0.6+r*0.62,BL*0.74,0.06,0.12,roofMat);
+    place(i,bldOff-2.0,5.9,BL*0.92,0.18,1.5,glassMat); // upper window band
+    place(i,bldOff-2.0,6.95,BL,0.5,0.5,pillarMat);     // parapet cap
+    // white divider pillars between bays
+    place(i,bldOff-2.2,1.9,0.4,0.5,3.9,pillarMat);
+  }
+  scene.add(grp);
 }
 function buildEnvironment(scene, env){
   const marsh = env==='marsh';
