@@ -1363,6 +1363,33 @@ function buildPits(scene,C,nrmL,tan,N,HALF,A,B,side,def){
     // white divider pillars between bays
     place(i,bldOff-2.2,1.9,0.4,0.5,3.9,pillarMat);
   }
+  // ---- paddock: tarmac apron behind the pits with transporters, motorhomes, awnings ----
+  const padOff=bldOff+6;
+  const homeMat=new THREE.MeshStandardMaterial({color:0xd9dee7,metalness:.2,roughness:.6});
+  const cabMat =new THREE.MeshStandardMaterial({color:0x1b2330,metalness:.45,roughness:.45});
+  const awnMat =new THREE.MeshStandardMaterial({color:def.color,roughness:.55,side:THREE.DoubleSide});
+  const crateMat=new THREE.MeshStandardMaterial({color:0x394150,roughness:.7});
+  // apron strip
+  const ap=[],aidx=[]; const wrap2=i=>((i%N)+N)%N;
+  for(let i=A-4;i<=B+4;i++){const c=C[wrap2(i)],nl=nrmL[wrap2(i)];
+    ap.push(c.x+nl.x*side*(bldOff+2),0.05,c.z+nl.z*side*(bldOff+2),
+            c.x+nl.x*side*(padOff+18),0.05,c.z+nl.z*side*(padOff+18));}
+  for(let k=0;k<(B+4)-(A-4);k++){const a=k*2;aidx.push(a,a+1,a+2,a+1,a+3,a+2);}
+  const ag=new THREE.BufferGeometry();ag.setAttribute('position',new THREE.Float32BufferAttribute(ap,3));
+  const an=new Float32Array(ap.length);for(let i=1;i<an.length;i+=3)an[i]=1;ag.setAttribute('normal',new THREE.BufferAttribute(an,3));ag.setIndex(aidx);
+  const apron=new THREE.Mesh(ag,new THREE.MeshStandardMaterial({color:0x33363d,roughness:.95,side:THREE.DoubleSide}));
+  apron.receiveShadow=true;apron.renderOrder=1;scene.add(apron);
+  // units along the paddock
+  const units=Math.max(3,Math.floor((B-A)/22));
+  for(let u=0;u<units;u++){
+    const i=wrap2(A+Math.floor((u+0.5)/units*(B-A)));
+    place(i,padOff+5.0,1.85,11,4.2,3.5,homeMat);    // transporter trailer
+    place(i+5,padOff+5.0,1.45,3.2,4.2,2.7,cabMat);  // cab
+    place(i,padOff+12.5,1.55,7,4.6,3.0,homeMat);    // motorhome
+    place(i,padOff-1.5,3.3,9,6,0.25,awnMat);        // team awning roof
+    place(i-4,padOff+2.5,0.55,1.6,1.6,1.1,crateMat);// crates
+    place(i+4,padOff+2.5,0.55,1.6,1.6,1.1,crateMat);
+  }
   scene.add(grp);
 }
 function buildEnvironment(scene, env){
@@ -1437,8 +1464,8 @@ function buildEnvironment(scene, env){
       }
     }
   } else if(fuji){
-    // barren mountain-top: a low distant ridge + the iconic snow-capped peak
-    for(let a=0;a<TAU;a+=TAU/42){const r=1700+(rng()-.5)*220,h=70+rng()*90,rad=130+rng()*130;
+    // mountain-top: the iconic snow peak + just a couple of distant summits
+    for(let a=0;a<TAU;a+=TAU/9){const r=1750+(rng()-.5)*220,h=120+rng()*120,rad=160+rng()*150;
       const m=new THREE.Mesh(new THREE.ConeGeometry(rad,h,6,1),
         new THREE.MeshStandardMaterial({color:new THREE.Color().setHSL(.6,.10,.32+rng()*.06),roughness:1,flatShading:true,fog:true}));
       m.position.set(Math.cos(a)*r,h/2-34,Math.sin(a)*r);mtGroup.add(m);}
@@ -1450,11 +1477,11 @@ function buildEnvironment(scene, env){
       new THREE.MeshStandardMaterial({color:0xf4f7fb,roughness:.8,flatShading:true}));
     fcap.position.set(120,fh-fh*0.18-44,-1900);mtGroup.add(fcap);
   } else if(grass){
-    // open country: gentle distant rolling green hills
-    for(let a=0;a<TAU;a+=TAU/64){const r=1500+(rng()-.5)*280,rad=180+rng()*220,h=60+rng()*60;
-      const m=new THREE.Mesh(new THREE.ConeGeometry(rad,h,7,1),
-        new THREE.MeshStandardMaterial({color:new THREE.Color().setHSL(.27+rng()*.04,.42,.32+rng()*.07),roughness:1,flatShading:true,fog:true}));
-      m.position.set(Math.cos(a)*r,h/2-30,Math.sin(a)*r);mtGroup.add(m);}
+    // flat farmland — NO mountains, just a faint low treeline on the horizon
+    for(let a=0;a<TAU;a+=TAU/200){const r=1700+(rng()-.5)*120;
+      const m=new THREE.Mesh(new THREE.ConeGeometry(22+rng()*26,26+rng()*30,5,1),
+        new THREE.MeshStandardMaterial({color:new THREE.Color().setHSL(.28+rng()*.04,.42,.22+rng()*.05),roughness:1,flatShading:true,fog:true}));
+      m.position.set(Math.cos(a)*r,2,Math.sin(a)*r);mtGroup.add(m);}
   } else {
     // alpine: snow-capped peaks
     const ringR=1850;
@@ -2568,7 +2595,7 @@ let lap=1, lapStart=0, lastCrossSeg=0, raceClock=0, countdown=0, bestLapShown=nu
 let camPos=new THREE.Vector3(), camLook=new THREE.Vector3();
 
 let raceTrackKey=null, raceMode='solo', aiSim=null, aiCar=null;
-const AI_TUNE={top:1.04,accel:1.06,brake:1.06,grip:1.05,steer:1.0};   // strong rival
+const AI_TUNE={top:1.08,accel:1.16,brake:1.06,grip:1.08,steer:1.02};   // strong rival
 function startRace(trackKey,mode){
   if(location.hash==='#debug')window.__startRace=startRace;
   trackKey=trackKey||raceTrackKey||'nurburgring';
@@ -2583,14 +2610,19 @@ function startRace(trackKey,mode){
   // move the ONE shared car into the race scene (no second mesh built)
   raceCar=getCar(GAME.team);race.scene.add(raceCar.root);
   TUNE=computeTune(GAME.team);          // car feel depends on installed upgrades
-  sim=new CarSim();sim.reset(2);sim.tune=TUNE;
+  sim=new CarSim();sim.reset(3);sim.tune=TUNE;
   // ---- AI rival ----
   if(aiCar){race.scene.remove(aiCar.root);aiCar=null;}
   aiSim=null;
   if(raceMode==='ai'){
     const aiTeam={name:'Rival',color:'#e8e8ee',accent:'#ff3b3b',number:'2',logo:'R'};
     aiCar=makeCar(aiTeam);race.scene.add(aiCar.root);
-    aiSim=new CarSim();aiSim.reset(6);aiSim.tune=AI_TUNE;aiSim.aiOffset=0;
+    aiSim=new CarSim();aiSim.reset(3);aiSim.tune=AI_TUNE;aiSim.aiOffset=0;
+    // grid: player on the right, rival on the left of the same start line
+    const gi=3, nl=TRACK.nrmL[gi];
+    sim.x  =TRACK.C[gi].x+nl.x*-3.2; sim.z  =TRACK.C[gi].z+nl.z*-3.2;
+    aiSim.x=TRACK.C[gi].x+nl.x* 3.2; aiSim.z=TRACK.C[gi].z+nl.z* 3.2;
+    aiSim.aiOffset=3.2;
   }
   if(location.hash==='#debug'){window.__sim=sim;window.__TRACK=TRACK;}
   lap=1;raceClock=0;lapStart=0;lastCrossSeg=sim.seg;countdown=3.2;
@@ -2653,13 +2685,16 @@ function aiControl(ai,opp,dt){
   const tx=C[ti].x+nl.x*ai.aiOffset, tz=C[ti].z+nl.z*ai.aiOffset;
   let dh=Math.atan2(tx-ai.x,tz-ai.z)-ai.heading;
   while(dh>Math.PI)dh-=TAU; while(dh<-Math.PI)dh+=TAU;
-  const steer=clamp(dh*2.2,-1,1);
-  // brake for upcoming curvature
+  const steer=clamp(dh*1.9,-1,1);
+  // brake for upcoming curvature (weighted to the NEAREST corner so it isn't
+  // timid about distant ones, and a higher minimum corner speed)
   let maxTurn=0;
-  for(let k=4;k<=la+12;k++){const a=tan[(i+k)%N],b=tan[(i+k-4+N)%N];maxTurn=Math.max(maxTurn,Math.abs(a.x*b.z-a.z*b.x));}
-  const cornerSpeed=lerp(PHYS.topSpeed*AI_TUNE.top*0.98,16,clamp(maxTurn*7,0,1));
-  let throttle=0,brake=0;
-  if(spd>cornerSpeed+1.5) brake=clamp((spd-cornerSpeed)/9,0,1); else throttle=1;
+  for(let k=4;k<=la+8;k++){const a=tan[(i+k)%N],b=tan[(i+k-4+N)%N];
+    const w=1-(k-4)/(la+6);                       // nearer corners weigh more
+    maxTurn=Math.max(maxTurn,Math.abs(a.x*b.z-a.z*b.x)*Math.max(0.4,w));}
+  const cornerSpeed=lerp(PHYS.topSpeed*AI_TUNE.top, 24, clamp(maxTurn*4.5,0,1));
+  let throttle=1,brake=0;
+  if(spd>cornerSpeed+2){ brake=clamp((spd-cornerSpeed)/12,0,1); throttle=0; }
   if(dseg<0 && dseg>-6 && dist<5.5) throttle*=0.25;   // lift rather than rear-end the player
   return {throttle,brake,steer,handbrake:false};
 }
