@@ -375,6 +375,26 @@
   .rcm-mode .rcm-ic{position:absolute;left:20px;top:50%;transform:translateY(-50%);font-size:26px;opacity:.9}
   .rcm-mode b{font-size:17px;letter-spacing:.04em}
   .rcm-mode span{font-size:12px;color:#9aa6d0;letter-spacing:.02em}
+  .rcm-laprow{margin:0 0 18px}
+  .rcm-laps{display:flex;gap:8px;margin-top:9px;flex-wrap:wrap}
+  .rcm-lap{padding:9px 0;flex:1;min-width:48px;text-align:center;cursor:pointer;border-radius:9px;
+    background:rgba(34,42,66,.5);border:1px solid rgba(130,150,255,.16);font-weight:800;font-size:14px;
+    color:#cfd6ef;transition:.14s}
+  .rcm-lap:hover{border-color:rgba(130,150,255,.5)}
+  .rcm-lap.sel{background:linear-gradient(180deg,#ff4d4d,#c10f0f);border-color:rgba(255,140,140,.5);color:#fff}
+  .rcm-lap small{display:block;font-size:8px;letter-spacing:.14em;color:#9aa6d0;font-weight:600}
+  .rcm-lap.sel small{color:#ffd9d9}
+  /* fuel gauge (next to the speedo) */
+  .fuel{position:absolute;right:222px;bottom:34px;width:24px;height:150px;
+    background:rgba(10,13,22,.7);border:1px solid rgba(130,150,255,.2);border-radius:8px;overflow:hidden}
+  .fuel i{position:absolute;left:0;right:0;bottom:0;background:linear-gradient(180deg,#5ef08a,#2fa85e);transition:height .2s,background .3s}
+  .fuel.low i{background:linear-gradient(180deg,#ffd24d,#e0892a)}
+  .fuel.crit i{background:linear-gradient(180deg,#ff5a5a,#c11414)}
+  .fuel .fl{position:absolute;left:50%;bottom:-18px;transform:translateX(-50%);font-size:9px;letter-spacing:.16em;color:#8a96c2}
+  .turbo-tag{position:absolute;right:34px;bottom:208px;font-size:12px;font-weight:800;letter-spacing:.18em;
+    color:#ff4d4d;opacity:0;transition:.15s}
+  .turbo-tag.on{opacity:1}
+  .g-num.boost{color:#ff4d4d!important}
 
   /* ---------- Intro / loader ---------- */
   #loader{position:fixed;inset:0;z-index:9;background:#05070d;display:flex;
@@ -441,6 +461,8 @@
       </div>
       <div class="g-gear" id="gear">D</div>
     </div>
+    <div class="turbo-tag" id="turboTag">TURBO</div>
+    <div class="fuel" id="fuel"><i id="fuelFill" style="height:100%"></i><span class="fl">FUEL</span></div>
 
     <div class="raceflash" id="raceflash">3</div>
   </div>
@@ -591,6 +613,8 @@
     <div class="rcm-card">
       <button class="um-close" id="rcClose">×</button>
       <div class="rcm-head"><div class="rcm-k">Event</div><h2 id="rcmTrack">Nürburgring</h2></div>
+      <div class="rcm-laprow"><div class="rcm-k">Race distance</div>
+        <div class="rcm-laps" id="rcmLaps"></div></div>
       <div class="rcm-modes">
         <button class="rcm-mode" data-mode="solo">
           <div class="rcm-ic">◷</div><b>SOLO</b><span>Hot-lap — chase your best time and sectors</span></button>
@@ -1205,8 +1229,9 @@ function buildTrack(scene, def){
     woffL[i]=(t> 1e-4)?Math.max(HALF+2.6,Math.min(WALL_OFF,0.70*R)):WALL_OFF;
     woffR[i]=(t<-1e-4)?Math.max(HALF+2.6,Math.min(WALL_OFF,0.70*R)):WALL_OFF;
   }
-  const sponMats=SPONSORS.map(s=>new THREE.MeshStandardMaterial({
-    map:sponsorTex(s,outlinePts),metalness:.15,roughness:.78,side:THREE.DoubleSide}));
+  // only ONE sponsor (sector 0) carries the circuit outline; the rest are plain brands
+  const sponMats=SPONSORS.map((s,idx)=>new THREE.MeshStandardMaterial({
+    map:sponsorTex(s, idx===0?outlinePts:null),metalness:.15,roughness:.78,side:THREE.DoubleSide}));
   const capMat=new THREE.MeshStandardMaterial({color:0xced3da,metalness:.2,roughness:.6,side:THREE.DoubleSide});
   function offPt(i,sideSign){
     const d=(sideSign>0?woffL:woffR)[i], c=C[i%N], nl=nrmL[i];
@@ -1351,15 +1376,14 @@ function buildPits(scene,C,nrmL,tan,N,HALF,A,B,side,def){
   // continuous slab apron + back wall + roof + upper floor span the whole row
   for(let bI=0;bI<bays;bI++){
     const i=idxs[bI];
-    place(i,bldOff-1.0,0.06,BL,9,0.12,slabMat);     // apron slab
-    place(i,bldOff+2.0,4.2,BL,1.0,8.4,wallMat);     // tall back wall
-    place(i,bldOff-2.2,4.35,BL,8.6,0.35,roofMat);   // canopy roof over the bay
-    place(i,bldOff+0.2,1.85,BL*0.96,4.4,3.6,wallMat);// bay surround (recess walls)
-    const door=place(i,bldOff-2.05,1.85,BL*0.74,0.18,3.2,doorMat); // roller door
-    // door ribs
-    for(let r=0;r<5;r++) place(i,bldOff-2.16,0.6+r*0.62,BL*0.74,0.06,0.12,roofMat);
-    place(i,bldOff-2.0,5.9,BL*0.92,0.18,1.5,glassMat); // upper window band
-    place(i,bldOff-2.0,6.95,BL,0.5,0.5,pillarMat);     // parapet cap
+    place(i,bldOff-1.0,0.06,BL,10.3,0.12,slabMat);    // apron slab (15% bigger pit building)
+    place(i,bldOff+2.4,4.8,BL,1.1,9.7,wallMat);       // tall back wall
+    place(i,bldOff-2.5,5.0,BL,9.8,0.4,roofMat);       // canopy roof over the bay
+    place(i,bldOff+0.2,2.1,BL*0.96,5.0,4.1,wallMat);  // bay surround (recess walls)
+    const door=place(i,bldOff-2.35,2.1,BL*0.74,0.2,3.7,doorMat); // roller door
+    for(let r=0;r<5;r++) place(i,bldOff-2.48,0.7+r*0.71,BL*0.74,0.07,0.14,roofMat);
+    place(i,bldOff-2.3,6.8,BL*0.92,0.2,1.7,glassMat); // upper window band
+    place(i,bldOff-2.3,8.0,BL,0.55,0.55,pillarMat);   // parapet cap
     // white divider pillars between bays
     place(i,bldOff-2.2,1.9,0.4,0.5,3.9,pillarMat);
   }
@@ -1625,17 +1649,17 @@ const PHYS={
   reverseSpeed:9,
   engineDrag:0.6,
   rollDrag:2.4,
-  steerLow:1.58,        // rad/s steering authority at low speed (harder, less darty)
-  steerHigh:0.58,       // at top speed (you must set up corners earlier)
+  steerLow:1.5,         // rad/s steering authority at low speed (harder, less darty)
+  steerHigh:0.52,       // at top speed (you must set up corners earlier)
   steerSmooth:11,       // input smoothing rate
-  gripTarmac:4.7,       // low grip -> the car genuinely slides; you must manage it
-  gripGrass:1.5,        // grass is treacherous
-  gripKerb:4.2,         // kerbs really unsettle the car
-  handbrakeGrip:1.0,    // grip while drifting
-  driftAngleCap:1.2,    // bigger angles possible -> easier to spin
-  counterAssist:0.5,    // almost no invisible help -> you must catch slides
-  exitBoost:4.0,
-  kerbDrag:13.0,        // kerbs scrub speed while you're on them
+  gripTarmac:4.2,       // low grip -> the car genuinely slides; you must manage it
+  gripGrass:1.3,        // grass is treacherous
+  gripKerb:3.7,         // kerbs really unsettle the car
+  handbrakeGrip:0.9,    // grip while drifting
+  driftAngleCap:1.3,    // bigger angles possible -> easier to spin
+  counterAssist:0.3,    // barely any invisible help -> you must catch slides
+  exitBoost:3.5,
+  kerbDrag:14.0,        // kerbs scrub speed while you're on them
   kerbShake:1.0         // visual elevation/vibration intensity on kerbs
 };
 
@@ -1677,7 +1701,8 @@ class CarSim{
     // understeer bias: reduce authority slightly when going fast & not drifting
     const handbrake=input.handbrake;
     // ---- engine / braking (top speed, accel, braking all depend on upgrades) ----
-    const effTop=PHYS.topSpeed*T.top;
+    const boost=this.boost?1.15:1;            // turbo: +15% speed/accel
+    const effTop=PHYS.topSpeed*T.top*boost;
     const brakeDec=PHYS.brakeDecel*T.brake;
     const accelRate=effTop/PHYS.accelTime*T.accel;
     if(input.throttle>0.01){
@@ -2076,12 +2101,22 @@ $('#btnEditLivery').onclick=()=>{
 $('#btnGarageMenu').onclick=()=>{STATE='menu';activeScene=null;activeCam=null;showScreen('menu');};
 $('#btnRace').onclick=()=>chooseRace(raceTrackKey||'nurburgring');
 $('#pausebtn').onclick=()=>exitRace();
-let pendingTrack='nurburgring';
+let pendingTrack='nurburgring', selectedLaps=5;
+const LAP_OPTS=[3,5,10,20,50,100];
+function buildLapPicker(){
+  const host=$('#rcmLaps'); if(!host)return; host.innerHTML='';
+  LAP_OPTS.forEach(n=>{const d=document.createElement('div');
+    d.className='rcm-lap'+(n===selectedLaps?' sel':'');
+    d.innerHTML=n+'<small>LAPS</small>';
+    d.onclick=()=>{selectedLaps=n;buildLapPicker();};
+    host.appendChild(d);});
+}
 function chooseRace(track){ pendingTrack=track||'nurburgring';
   $('#rcmTrack').textContent=(TRACKS[pendingTrack]&&TRACKS[pendingTrack].name)||'Race';
+  buildLapPicker();
   $('#raceChoose').classList.add('show'); }
 document.querySelectorAll('.rcm-mode').forEach(b=>b.onclick=()=>{
-  $('#raceChoose').classList.remove('show'); startRace(pendingTrack,b.dataset.mode); });
+  $('#raceChoose').classList.remove('show'); startRace(pendingTrack,b.dataset.mode,selectedLaps); });
 $('#rcClose').onclick=()=>$('#raceChoose').classList.remove('show');
 $('#raceChoose').onclick=e=>{if(e.target.id==='raceChoose')e.currentTarget.classList.remove('show');};
 
@@ -2573,6 +2608,7 @@ function spinWheelsVisual(car,spin,steer){
 const Input={throttle:0,brake:0,steer:0,handbrake:false};
 const keys={};
 addEventListener('keydown',e=>{keys[e.code]=true;
+  if(e.code==='KeyT' && STATE==='race' && sim && sim.fuel>0){ turboOn=!turboOn; }
   if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space'].includes(e.code))e.preventDefault();});
 addEventListener('keyup',e=>{keys[e.code]=false;});
 
@@ -2592,14 +2628,16 @@ function pollInput(dt){
 
 let sim=null, raceCar=null, raceState='idle';
 let lap=1, lapStart=0, lastCrossSeg=0, raceClock=0, countdown=0, bestLapShown=null;
+let lapTarget=5, fuelMax=20, turboOn=false;
 let camPos=new THREE.Vector3(), camLook=new THREE.Vector3();
 
 let raceTrackKey=null, raceMode='solo', aiSim=null, aiCar=null;
 const AI_TUNE={top:1.08,accel:1.16,brake:1.06,grip:1.08,steer:1.02};   // strong rival
-function startRace(trackKey,mode){
+function startRace(trackKey,mode,laps){
   if(location.hash==='#debug')window.__startRace=startRace;
   trackKey=trackKey||raceTrackKey||'nurburgring';
   raceMode=mode||'solo';
+  lapTarget=laps||5;
   if(!race || raceTrackKey!==trackKey){ race=buildRace(trackKey); raceTrackKey=trackKey; }
   if(location.hash==='#debug'){window.__race=race;window.__renderer=renderer;window.__THREE=THREE;}
   STATE='race';raceState='countdown';
@@ -2626,6 +2664,9 @@ function startRace(trackKey,mode){
   }
   if(location.hash==='#debug'){window.__sim=sim;window.__TRACK=TRACK;}
   lap=1;raceClock=0;lapStart=0;lastCrossSeg=sim.seg;countdown=3.2;
+  // ---- fuel + turbo: tank starts ~20% over what a clean run needs ----
+  fuelMax=4*lapTarget; sim.fuel=fuelMax; turboOn=false; sim.boost=false;
+  $('#lapnum').parentElement && ($('#hud').querySelector('.ht-lapv i')&&($('#hud').querySelector('.ht-lapv i').textContent='/'+lapTarget));
   bestLapShown=GAME.team.bestLap||null;
   $('#bestlap').textContent=bestLapShown?fmtTime(bestLapShown):'—:—';
   $('#lastlap').textContent='—:—';$('#delta').textContent='';$('#delta').className='ht-delta';
@@ -2660,42 +2701,44 @@ function flash(txt){const f=$('#raceflash');f.textContent=txt;f.style.opacity='1
 function fmtTime(s){if(s==null)return '—';const m=Math.floor(s/60);const r=s-m*60;
   return m+':'+(r<10?'0':'')+r.toFixed(2);}
 
-/* ---- AI rival: races the line, defends/attacks, avoids contact ---- */
+/* ---- AI rival: follows the line, brakes properly for corners, races clean ---- */
 function aiControl(ai,opp,dt){
   const C=TRACK.C,tan=TRACK.tan,nrmL=TRACK.nrmL,N=TRACK.N,HALF=TRACK.HALF;
-  const i=ai.seg, spd=ai.speed;
-  const la=Math.round(7+spd*1.0);                 // lookahead grows with speed
+  if(TRACK._segLen===undefined) TRACK._segLen=TRACK.curve.getLength()/N;
+  const segLen=TRACK._segLen, i=ai.seg, spd=ai.speed, topV=PHYS.topSpeed*AI_TUNE.top;
   let dseg=i-opp.seg; if(dseg>N/2)dseg-=N; if(dseg<-N/2)dseg+=N;   // + = ai ahead
   const dx=ai.x-opp.x, dz=ai.z-opp.z, dist=Math.hypot(dx,dz);
   const aiLat=(ai.x-C[i].x)*nrmL[i].x+(ai.z-C[i].z)*nrmL[i].z;
   const oppLat=(opp.x-C[opp.seg].x)*nrmL[opp.seg].x+(opp.z-C[opp.seg].z)*nrmL[opp.seg].z;
-  // racing intent: defend (shadow rival's side) when ahead, attack (other side) when behind
+  // line: mostly the racing centre; offset to defend/attack/avoid
   let target=0;
-  if(dseg>0 && dseg<16 && dist<26)       target=clamp(oppLat*0.85,-HALF*0.6,HALF*0.6);
-  else if(dseg<0 && dseg>-18 && dist<30) target=-Math.sign(oppLat||1)*HALF*0.55;
-  // contact avoidance overrides everything when alongside — give room, never hit
-  if(dist<7 && Math.abs(dseg)<11){
-    const away=Math.sign(aiLat-oppLat||1);
-    target=away*Math.min(HALF*0.82, Math.abs(oppLat)+3.4);
-  }
-  target=clamp(target,-HALF*0.82,HALF*0.82);
-  ai.aiOffset=lerp(ai.aiOffset||0,target,1-Math.exp(-3.5*dt));
-  // steer toward a lookahead point on the chosen line
+  if(dseg>0 && dseg<16 && dist<24)       target=clamp(oppLat*0.8,-HALF*0.55,HALF*0.55);
+  else if(dseg<0 && dseg>-18 && dist<28) target=-Math.sign(oppLat||1)*HALF*0.5;
+  if(dist<7 && Math.abs(dseg)<11) target=Math.sign(aiLat-oppLat||1)*Math.min(HALF*0.8,Math.abs(oppLat)+3.2);
+  target=clamp(target,-HALF*0.78,HALF*0.78);
+  ai.aiOffset=lerp(ai.aiOffset||0,target,1-Math.exp(-3*dt));
+
+  // ---- STEER toward a near lookahead point on the line (gain eases with speed) ----
+  const la=Math.max(5,Math.round(5+spd*0.55));
   const ti=(i+la)%N, nl=nrmL[ti];
   const tx=C[ti].x+nl.x*ai.aiOffset, tz=C[ti].z+nl.z*ai.aiOffset;
   let dh=Math.atan2(tx-ai.x,tz-ai.z)-ai.heading;
   while(dh>Math.PI)dh-=TAU; while(dh<-Math.PI)dh+=TAU;
-  const steer=clamp(dh*1.9,-1,1);
-  // brake for upcoming curvature (weighted to the NEAREST corner so it isn't
-  // timid about distant ones, and a higher minimum corner speed)
-  let maxTurn=0;
-  for(let k=4;k<=la+8;k++){const a=tan[(i+k)%N],b=tan[(i+k-4+N)%N];
-    const w=1-(k-4)/(la+6);                       // nearer corners weigh more
-    maxTurn=Math.max(maxTurn,Math.abs(a.x*b.z-a.z*b.x)*Math.max(0.4,w));}
-  const cornerSpeed=lerp(PHYS.topSpeed*AI_TUNE.top, 24, clamp(maxTurn*4.5,0,1));
+  const steer=clamp(dh*(2.4-spd*0.014),-1,1);
+
+  // ---- SPEED: brake for total heading change over the braking distance ----
+  const lookDist=8+spd*spd*0.045;                         // ~ braking distance (m)
+  const lookN=Math.min(N-2,Math.max(6,Math.round(lookDist/segLen)));
+  let curveAhead=0;
+  for(let k=2;k<=lookN;k++){const a=tan[(i+k)%N],b=tan[(i+k-2+N)%N];
+    curveAhead+=Math.abs(a.x*b.z-a.z*b.x);}              // ~ total upcoming turn (rad)
+  const cornerSpeed=clamp(topV*(1-curveAhead*0.62), 18, topV);
   let throttle=1,brake=0;
-  if(spd>cornerSpeed+2){ brake=clamp((spd-cornerSpeed)/12,0,1); throttle=0; }
-  if(dseg<0 && dseg>-6 && dist<5.5) throttle*=0.25;   // lift rather than rear-end the player
+  if(spd>cornerSpeed+1){ brake=clamp((spd-cornerSpeed)/10,0,1); throttle=0; }
+  else if(spd>cornerSpeed-3){ throttle=0.5; }            // coast near the limit
+  // if badly off the line, ease off so it can recover instead of flying off
+  if(Math.abs(aiLat)>HALF*0.9){ throttle*=0.5; }
+  if(dseg<0 && dseg>-6 && dist<5.5) throttle*=0.3;       // don't rear-end the player
   return {throttle,brake,steer,handbrake:false};
 }
 function prog(s){ if(s._lastSeg===undefined){s._lastSeg=s.seg;s._laps=0;}
@@ -2725,6 +2768,8 @@ function raceUpdate(dt){
   if(raceState!=='running')return;
   raceClock+=dt;
   pollInput(dt);
+  if(sim.outOfFuel) Input.throttle=0;        // no fuel -> no drive
+  sim.boost=turboOn && sim.fuel>0;            // turbo feeds the sim
   sim.update(dt,Input);
 
   // apply to car mesh
@@ -2796,7 +2841,7 @@ function raceUpdate(dt){
       }
       lap++;lapStart=raceClock;secStartClock=raceClock;curSec=secOf(0);
       curBySeg=new Float32Array(N).fill(-1);
-      if(lap>3){flash('FINISH');raceState='finished';setTimeout(()=>exitRace(),2600);}
+      if(lap>lapTarget){flash('FINISH');raceState='finished';setTimeout(()=>exitRace(),2600);}
       else flash('LAP '+lap);
     }
   }
@@ -2805,10 +2850,22 @@ function raceUpdate(dt){
   // camera
   updateChaseCam(dt,sim._sp01||0);
 
+  // ---- fuel burn (by distance so it's lap-count independent) + turbo drain ----
+  const burnPerM = (3.33/Math.max(1,TRACK._segLen?TRACK._segLen*N:1400));  // ~3.33 gal/lap
+  sim.fuel -= sim.speed*dt*burnPerM;
+  if(turboOn) sim.fuel -= 0.10*dt;              // ~1% of a 20-gal tank per 2s
+  if(sim.fuel<=0){ sim.fuel=0; turboOn=false; sim.boost=false; }   // out of fuel -> no power
+  sim.outOfFuel = sim.fuel<=0;
+  const fuelFrac=clamp(sim.fuel/fuelMax,0,1);
+  const fuelEl=$('#fuel'); $('#fuelFill').style.height=(fuelFrac*100)+'%';
+  fuelEl.classList.toggle('low',fuelFrac<0.3&&fuelFrac>=0.12); fuelEl.classList.toggle('crit',fuelFrac<0.12);
+
   // ---- HUD ----
   const sp01=sim._sp01||0;
   $('#spd').textContent=Math.round(sim.speed*3.6);
-  $('#lapnum').textContent=Math.min(lap,3);
+  $('#spd').classList.toggle('boost',turboOn);
+  $('#turboTag').classList.toggle('on',turboOn);
+  $('#lapnum').textContent=Math.min(lap,lapTarget);
   $('#laptime').textContent=fmtTime(lapT);
   $('#gear').textContent=sim.speed<0.5?'N':(sim.fwd()[0]*sim.vx+sim.fwd()[1]*sim.vz)<-0.5?'R':'D';
   // gauge fill (270° sweep) + colour ramp
