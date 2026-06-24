@@ -722,22 +722,34 @@ const TRACKS = {
     pts:TRACK_PTS, scale:1.75, env:'alpine',
     sponsors:[ {name:'NORDWERK', color:'#d11f2a'},
                {name:'EIFEL OIL', color:'#f4c20d'},
-               {name:'GREENHELL', color:'#1ec96b'} ] },
+               {name:'GREENHELL', color:'#1ec96b'} ],
+    // tall steel terrace, dark-green cantilever roof, German tricolor fascia
+    stand:{ roof:'#16331f', frame:'#3a4150', tiers:7, W:30, roofType:'cantilever',
+            banner:['#101317','#d11f2a','#f4c20d'], crowd:['#d9dde6','#c4452f','#3a6cc4','#e6c84a','#2f7d4a'] } },
   buenosaires:{ name:'Buenos Aires', country:'Argentina', color:'#5aa9dc',
     pts:BA_PTS, scale:1.55, env:'marsh',
     sponsors:[ {name:'PAMPAS', color:'#5aa9dc'},
                {name:'GAUCHO TYRES', color:'#f4a300'},
-               {name:'RÍO RACING', color:'#eaeef5'} ] },
+               {name:'RÍO RACING', color:'#eaeef5'} ],
+    // open curved terrace, sky-blue & white sun-of-may colours, light open roof
+    stand:{ roof:'#dfe6ee', frame:'#c9d3df', tiers:5, W:34, roofType:'open',
+            banner:['#5aa9dc','#ffffff','#f4c20d'], crowd:['#7cc0ee','#ffffff','#f4c20d','#5aa9dc','#e6eef6'] } },
   fuji:{ name:'Fuji Speedway', country:'Japan', color:'#e23b3b',
     pts:FUJI_PTS, scale:1.9, env:'fuji',
     sponsors:[ {name:'FUJI MOTORS', color:'#e23b3b'},
                {name:'SAKURA OIL', color:'#ff77a9'},
-               {name:'NIPPON TECH', color:'#eaeef5'} ] },
+               {name:'NIPPON TECH', color:'#eaeef5'} ],
+    // pagoda-style tiered roof, white frame, red & white rising-sun fascia
+    stand:{ roof:'#b8202a', frame:'#eef1f5', tiers:6, W:28, roofType:'pagoda',
+            banner:['#ffffff','#e23b3b','#ff77a9'], crowd:['#e23b3b','#ffffff','#ff9ebf','#e6e9f0','#d12f3a'] } },
   roadamerica:{ name:'Road America', country:'United States', color:'#2f8f4e',
     pts:RA_PTS, scale:1.55, env:'grassland',
     sponsors:[ {name:'HEARTLAND', color:'#2f8f4e'},
                {name:'PRAIRIE FUEL', color:'#f4a300'},
-               {name:'STARS RACING', color:'#3b6cff'} ] },
+               {name:'STARS RACING', color:'#3b6cff'} ],
+    // classic American wood-frame bleachers, blue roof, stars-and-stripes fascia
+    stand:{ roof:'#2a3f7a', frame:'#9a7a4e', tiers:5, W:32, roofType:'bleacher',
+            banner:['#b22234','#ffffff','#3c3b6e'], crowd:['#c4452f','#dfe3ea','#3a6cc4','#e6c84a','#cfd4dd'] } },
 };
 </script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -1311,6 +1323,7 @@ function buildTrack(scene, def){
   TRACK.woffL=woffL;TRACK.woffR=woffR;
   TRACK.SCALE=SCALE;TRACK.startTangent=Math.atan2(tan[0].x,tan[0].z);TRACK.start=C[0];
   TRACK.curve=curve;
+  buildGrandstands(scene,C,nrmL,N,HALF,def);
   return TRACK;
 }
 
@@ -1434,6 +1447,104 @@ function buildPits(scene,C,nrmL,tan,N,HALF,A,B,side,def){
   }
   scene.add(grp);
 }
+/* ---- grandstands: a unique stand design per track, placed outside the circuit,
+   stored in TRACK._stands for crowd-cheer proximity detection ---- */
+function crowdTex(palette){
+  const c=document.createElement('canvas');c.width=256;c.height=128;const x=c.getContext('2d');
+  x.fillStyle='#13151b';x.fillRect(0,0,256,128);
+  for(let r=0;r<11;r++){
+    const y=6+r*11;
+    x.fillStyle='rgba(0,0,0,.30)';x.fillRect(0,y+7,256,3);            // step shadow
+    for(let i=0;i<46;i++){
+      const px=2+i*5.5+(r%2)*2.7;
+      x.fillStyle=palette[(Math.random()*palette.length)|0];
+      x.beginPath();x.arc(px,y+3,1.9,0,TAU);x.fill();                  // a spectator
+    }
+  }
+  const t=new THREE.CanvasTexture(c);t.encoding=THREE.sRGBEncoding;t.anisotropy=4;return t;
+}
+function bannerTex(cols,country){
+  const c=document.createElement('canvas');c.width=512;c.height=64;const x=c.getContext('2d');
+  // tri-band fascia
+  for(let i=0;i<3;i++){x.fillStyle=cols[i%cols.length];x.fillRect(0,i*22,512,22);}
+  // repeating wordmark
+  x.fillStyle='rgba(255,255,255,.92)';x.font='900 26px Arial';x.textBaseline='middle';
+  const word=(country||'URACING').toUpperCase()+'   ';
+  for(let px=8;px<512;px+=170){x.fillText(word,px,32);}
+  const t=new THREE.CanvasTexture(c);t.encoding=THREE.sRGBEncoding;t.anisotropy=4;return t;
+}
+function makeGrandstand(style){
+  const g=new THREE.Group();
+  const W=style.W||30, D=15, tiers=style.tiers||6, stepH=1.15, stepD=D/tiers;
+  const frameMat=new THREE.MeshStandardMaterial({color:style.frame,roughness:.62,metalness:.28});
+  const crowdMat=new THREE.MeshStandardMaterial({map:crowdTex(style.crowd),roughness:.95});
+  const topY=tiers*stepH;
+  // stepped seating: front (+z) toward the track, rising away
+  for(let i=0;i<tiers;i++){
+    const h=(i+1)*stepH, zc=D/2 - i*stepD - stepD/2;
+    const step=new THREE.Mesh(new THREE.BoxGeometry(W,h,stepD+0.08),frameMat);
+    step.position.set(0,h/2,zc);step.castShadow=true;step.receiveShadow=true;g.add(step);
+    const riser=new THREE.Mesh(new THREE.PlaneGeometry(W*0.985,stepH*0.96),crowdMat);
+    riser.position.set(0,h-stepH*0.5,zc+stepD/2+0.05);g.add(riser);
+  }
+  // side walls
+  for(const sx of [-W/2-0.1, W/2+0.1]){
+    const wallShape=new THREE.Mesh(new THREE.BoxGeometry(0.4,topY,D),frameMat);
+    wallShape.position.set(sx,topY/2,0);wallShape.castShadow=true;g.add(wallShape);
+  }
+  // roof per style
+  const roofMat=new THREE.MeshStandardMaterial({color:style.roof,roughness:.5,metalness:.25,side:THREE.DoubleSide});
+  const colH=topY+2.2;
+  if(style.roofType!=='open'){
+    for(const sx of [-W/2+0.7, 0, W/2-0.7]){
+      const p=new THREE.Mesh(new THREE.CylinderGeometry(0.24,0.24,colH,10),frameMat);
+      p.position.set(sx,colH/2,-D/2+0.9);p.castShadow=true;g.add(p);
+    }
+    if(style.roofType==='pagoda'){
+      // two stacked sloped roofs
+      for(let k=0;k<2;k++){
+        const rw=W+2-k*5, r=new THREE.Mesh(new THREE.BoxGeometry(rw,0.35,D*0.62-k*2),roofMat);
+        r.position.set(0,colH-0.2+k*1.7,0.4+k*1.0);r.rotation.x=-0.13-k*0.04;r.castShadow=true;g.add(r);
+      }
+    }else{ // cantilever / bleacher: single big canopy reaching over the seats
+      const r=new THREE.Mesh(new THREE.BoxGeometry(W+1.6,0.4,D*0.92),roofMat);
+      r.position.set(0,colH,0.6);r.rotation.x=-0.10;r.castShadow=true;g.add(r);
+    }
+    // banner fascia hanging off the roof front
+    const banner=new THREE.Mesh(new THREE.PlaneGeometry(W+1.2,1.5),
+      new THREE.MeshStandardMaterial({map:bannerTex(style.banner,style.country),roughness:.7,side:THREE.DoubleSide}));
+    banner.position.set(0,colH-1.0,D*0.42);banner.rotation.x=0.05;g.add(banner);
+  } else {
+    // open terrace: just a low banner wall at the back, no roof
+    const banner=new THREE.Mesh(new THREE.PlaneGeometry(W,1.8),
+      new THREE.MeshStandardMaterial({map:bannerTex(style.banner,style.country),roughness:.7,side:THREE.DoubleSide}));
+    banner.position.set(0,topY+0.9,-D/2+0.3);g.add(banner);
+  }
+  return g;
+}
+function buildGrandstands(scene,C,nrmL,N,HALF,def){
+  const style=def.stand; if(!style)return;
+  style.country=def.name;
+  TRACK._stands=[];
+  // track centroid -> outward direction so stands always sit OUTSIDE the circuit
+  let mx=0,mz=0; for(let i=0;i<N;i++){mx+=C[i].x;mz+=C[i].z;} mx/=N;mz/=N;
+  const FRAC=[0.06,0.24,0.42,0.60,0.78];     // spread around the lap
+  for(const fr of FRAC){
+    const i=Math.floor(fr*N)%N, c=C[i];
+    // pick the normal pointing away from the centroid
+    let nx=nrmL[i].x, nz=nrmL[i].z;
+    if((c.x-mx)*nx+(c.z-mz)*nz < 0){ nx=-nx; nz=-nz; }
+    const off=HALF+13.5;
+    const gx=c.x+nx*off, gz=c.z+nz*off;
+    const stand=makeGrandstand(style);
+    stand.position.set(gx,0,gz);
+    // face the track: local +z must point toward the centerline (-normal)
+    stand.rotation.y=Math.atan2(-nx,-nz);
+    scene.add(stand);
+    TRACK._stands.push({x:c.x+nx*HALF, z:c.z+nz*HALF, t:-99}); // cheer trigger point at trackside
+  }
+}
+
 function buildEnvironment(scene, env){
   const marsh = env==='marsh', fuji=env==='fuji', grass=env==='grassland';
   // sky dome gradient
@@ -1656,6 +1767,21 @@ function audioHit(force){
   g.gain.exponentialRampToValueAtTime(.001,ac.currentTime+.25);
   o.connect(g);g.connect(ac.destination);o.start();o.stop(ac.currentTime+.26);
 }
+function audioCheer(vol){
+  if(!Audio.started)return;
+  const ac=Audio.ctx,t=ac.currentTime,dur=1.7;
+  const buf=ac.createBuffer(1,ac.sampleRate*dur|0,ac.sampleRate),d=buf.getChannelData(0);
+  for(let i=0;i<d.length;i++){const e=Math.sin(Math.PI*i/d.length);
+    d[i]=(Math.random()*2-1)*e*(0.55+0.45*Math.sin(i*0.0008));}   // crowd-roar shaped noise
+  const ns=ac.createBufferSource();ns.buffer=buf;
+  const hp=ac.createBiquadFilter();hp.type='highpass';hp.frequency.value=480;
+  const bp=ac.createBiquadFilter();bp.type='bandpass';bp.frequency.value=1250;bp.Q.value=0.55;
+  const g=ac.createGain();g.gain.setValueAtTime(0,t);
+  g.gain.linearRampToValueAtTime(Math.min(0.42,vol||0.3),t+0.28);
+  g.gain.linearRampToValueAtTime(0.0001,t+dur);
+  ns.connect(hp);hp.connect(bp);bp.connect(g);g.connect(ac.destination);
+  ns.start(t);ns.stop(t+dur);
+}
 
 /* ======================================================================
    8.  ARCADE PHYSICS  (per design spec)
@@ -1717,7 +1843,7 @@ class CarSim{
     // speed-sensitive authority (scaled by development -> handling)
     const steerAuth=lerp(PHYS.steerLow,PHYS.steerHigh,sp01)*T.steer;
     // understeer bias: reduce authority slightly when going fast & not drifting
-    const handbrake=input.handbrake;
+    const handbrake=input.handbrake; this.lastHB=handbrake;
     // ---- engine / braking (top speed, accel, braking all depend on upgrades) ----
     const boost=this.boost?1.15:1;            // turbo: +15% speed/accel
     const effTop=PHYS.topSpeed*T.top*boost;
@@ -2737,6 +2863,7 @@ function startRace(trackKey,mode,laps){
   for(let i=0;i<3;i++){const e=$('#sec'+i);e.className='sec';e.querySelector('b').textContent='—';}
   // place camera behind
   const f=sim.fwd();camPos.set(sim.x-f[0]*9,5,sim.z-f[1]*9);
+  initSkid(race.scene);
   initAudio();
   flash('3');
 }
@@ -2809,6 +2936,43 @@ function updateBattleHud(){
   if(ge)ge.textContent=(lead?'+':'−')+gap.toFixed(0)+'m';
 }
 
+/* ---- skid / tire marks: ring-buffer of flat dark quads laid on tarmac while sliding ---- */
+const SKID={pool:[],idx:0,max:760,group:null,geo:null,mat:null};
+function initSkid(scene){
+  if(SKID.group){if(SKID.group.parent)SKID.group.parent.remove(SKID.group);}
+  SKID.group=new THREE.Group(); SKID.group.renderOrder=2;
+  if(!SKID.geo){ SKID.geo=new THREE.PlaneGeometry(1,1); SKID.geo.rotateX(-Math.PI/2); } // lie flat
+  SKID.mat=new THREE.MeshBasicMaterial({color:0x0c0c0e,transparent:true,opacity:0.5,
+    depthWrite:false,polygonOffset:true,polygonOffsetFactor:-3,polygonOffsetUnits:-3});
+  SKID.pool=[]; SKID.idx=0;
+  for(let i=0;i<SKID.max;i++){
+    const m=new THREE.Mesh(SKID.geo,SKID.mat); m.visible=false; m.position.y=0.035;
+    SKID.group.add(m); SKID.pool.push(m);
+  }
+  scene.add(SKID.group);
+}
+function skidSeg(x1,z1,x2,z2,wide){
+  const dx=x2-x1, dz=z2-z1, len=Math.hypot(dx,dz);
+  if(len<0.04||len>5) return;
+  const m=SKID.pool[SKID.idx]; SKID.idx=(SKID.idx+1)%SKID.max;
+  m.visible=true; m.position.set((x1+x2)/2,0.035,(z1+z2)/2);
+  m.scale.set(wide||0.32, len, 1);
+  m.rotation.y=Math.atan2(-dx,-dz);   // align length axis (-Z) along the segment
+}
+function layCarSkid(s){
+  const surfOk = s.surf==='tarmac' || s.surf==='kerb';
+  const lay = surfOk && (s.slip>0.42 || s.lastHB);
+  const f=s.fwd(), rx=-f[1], rz=f[0], halfW=0.74, back=1.65;
+  const bx=s.x-f[0]*back, bz=s.z-f[1]*back;
+  const lpx=bx+rx*halfW, lpz=bz+rz*halfW, rpx=bx-rx*halfW, rpz=bz-rz*halfW;
+  if(lay){
+    const wide=0.30+Math.min(0.16,s.slip*0.16);
+    if(s._pL) skidSeg(s._pL[0],s._pL[1],lpx,lpz,wide);
+    if(s._pR) skidSeg(s._pR[0],s._pR[1],rpx,rpz,wide);
+    s._pL=[lpx,lpz]; s._pR=[rpx,rpz];
+  } else { s._pL=null; s._pR=null; }
+}
+
 function raceUpdate(dt){
   if(raceState==='countdown'){
     countdown-=dt;
@@ -2839,6 +3003,7 @@ function raceUpdate(dt){
   // little body roll into the lift so it reads as climbing the kerb
   raceCar.root.rotation.z=Math.sin(t*0.04)*0.03*sim.kerbLift - sim.steerVis*sim._sp01*0.04;
   spinWheelsVisual(raceCar,sim.wheelSpin, sim.steerVis*0.5);
+  layCarSkid(sim);
 
   // ---- AI rival ----
   if(aiSim){
@@ -2847,6 +3012,7 @@ function raceUpdate(dt){
     aiCar.root.rotation.y=aiSim.heading;
     aiCar.root.rotation.z=-aiSim.steerVis*(aiSim._sp01||0)*0.04;
     spinWheelsVisual(aiCar,aiSim.wheelSpin, aiSim.steerVis*0.5);
+    layCarSkid(aiSim);
     // soft car-to-car collision (no flips, gentle separation)
     const ddx=sim.x-aiSim.x, ddz=sim.z-aiSim.z, dd=Math.hypot(ddx,ddz);
     const MIN=3.0;
@@ -2939,6 +3105,15 @@ function raceUpdate(dt){
   // audio
   const slip=clamp(sim.slip + (sim.surf==='grass'?0.3:0),0,1);
   audioUpdate(sim._sp01||0, slip, Input.throttle>0.1);
+  // crowd cheers when you sweep past a grandstand at pace
+  if(TRACK._stands){
+    for(const st of TRACK._stands){
+      const d=Math.hypot(sim.x-st.x,sim.z-st.z);
+      if(d<26 && sim.speed>16 && raceClock-st.t>3.5){
+        st.t=raceClock; audioCheer(0.34*(1-d/26)+0.08);
+      }
+    }
+  }
 }
 let _lastN=99;
 
