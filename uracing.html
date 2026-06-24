@@ -2059,6 +2059,60 @@ function drawPie(){
   x.beginPath();x.arc(cx,cy,R,0,TAU);x.stroke();
 }
 
+/* build a real 3D mesh from a part's traced strokes (sweep a tube along each
+   stroke) so the outline renders as a rotating 3D model in the upgrade stage */
+function part3D(key,color){
+  const data=PART_SVG[key], g=new THREE.Group();
+  const strokes=data.d.map(d=>(d.match(/-?\d+\.?\d*/g)||[]).map(Number));
+  let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9;
+  strokes.forEach(n=>{for(let i=0;i<n.length;i+=2){x0=Math.min(x0,n[i]);x1=Math.max(x1,n[i]);y0=Math.min(y0,n[i+1]);y1=Math.max(y1,n[i+1]);}});
+  const cx=(x0+x1)/2,cy=(y0+y1)/2,sc=3.4/Math.max(x1-x0,y1-y0,1);
+  const col=new THREE.Color(color||0xcdd7ff);
+  const mat=new THREE.MeshStandardMaterial({color:col,metalness:.6,roughness:.3,
+    emissive:col.clone().multiplyScalar(.18)});
+  strokes.forEach(n=>{
+    const pts=[];let lx=1e9,ly=1e9;
+    for(let i=0;i<n.length;i+=2){
+      const X=(n[i]-cx)*sc, Y=-(n[i+1]-cy)*sc;
+      if(Math.abs(X-lx)<1e-4&&Math.abs(Y-ly)<1e-4)continue; lx=X;ly=Y;
+      pts.push(new THREE.Vector3(X,Y,0));
+    }
+    if(pts.length<2)return;
+    try{
+      const cu=new THREE.CatmullRomCurve3(pts,false,'catmullrom',0.25);
+      const tube=new THREE.TubeGeometry(cu,Math.max(10,pts.length*5),0.055,7,false);
+      g.add(new THREE.Mesh(tube,mat));
+      // little spheres at the ends round it off
+      [pts[0],pts[pts.length-1]].forEach(pp=>{
+        const s=new THREE.Mesh(new THREE.SphereGeometry(0.055,8,8),mat);s.position.copy(pp);g.add(s);});
+    }catch(e){}
+  });
+  g.rotation.x=-0.12;
+  return g;
+}
+const PartViewer=(function(){
+  let rnd,scn,cam,grp,raf,host;
+  function init(){
+    host=$('#umIco'); host.innerHTML='';
+    const cv=document.createElement('canvas');cv.style.width='100%';cv.style.height='100%';host.appendChild(cv);
+    rnd=new THREE.WebGLRenderer({canvas:cv,antialias:true,alpha:true});
+    rnd.setPixelRatio(Math.min(devicePixelRatio,2));rnd.outputEncoding=THREE.sRGBEncoding;
+    scn=new THREE.Scene();
+    cam=new THREE.PerspectiveCamera(38,1.6,0.1,100);cam.position.set(0.4,0.3,5.4);cam.lookAt(0,0,0);
+    scn.add(new THREE.HemisphereLight(0xd6e4ff,0x10131c,1.0));
+    const d=new THREE.DirectionalLight(0xffffff,1.7);d.position.set(3,5,4);scn.add(d);
+    const d2=new THREE.DirectionalLight(0x88aaff,0.7);d2.position.set(-4,-1,-3);scn.add(d2);
+  }
+  function size(){const w=host.clientWidth||360,h=host.clientHeight||230;
+    if(w&&h){rnd.setSize(w,h,false);cam.aspect=w/h;cam.updateProjectionMatrix();}}
+  function loop(){raf=requestAnimationFrame(loop);if(grp)grp.rotation.y+=0.013;size();rnd.render(scn,cam);}
+  return {
+    show(key,color){ if(!rnd)init(); if(grp)scn.remove(grp); grp=part3D(key,color); scn.add(grp);
+      size(); if(!raf)loop(); },
+    hide(){ if(raf){cancelAnimationFrame(raf);raf=null;} }
+  };
+})();
+
 let umKey=null;
 const STAT_COLOR={power:'#ff8a3c',brake:'#4d9bff',grip:'#5ef08a'};
 function openUpgrade(key){
@@ -2066,7 +2120,7 @@ function openUpgrade(key){
   const p=PARTS.find(q=>q.key===key), dv=GAME.team.dev[key];
   const stage=document.querySelector('.um-stage');
   stage.style.setProperty('--ustat',STAT_COLOR[p.stat]||'#5a7cff');
-  $('#umIco').innerHTML=partSVG(key);
+  PartViewer.show(key, STAT_COLOR[p.stat]||'#cdd7ff');
   $('#umName').textContent=p.name;
   $('#umSub').textContent=STAT_LABEL[p.stat];
   $('#umLvl').textContent=dv.l;
@@ -2129,8 +2183,9 @@ function doInstall(lv){
   toast(p.name+' upgraded to stage '+lv);
 }
 function saveDev(){ GAME.team._refBySeg=GAME.team._refBySeg; writeSave({team:GAME.team}); }
-$('#umClose').onclick=()=>$('#upgradeModal').classList.remove('show');
-$('#upgradeModal').onclick=e=>{if(e.target.id==='upgradeModal')e.currentTarget.classList.remove('show');};
+function closeUpgrade(){$('#upgradeModal').classList.remove('show');PartViewer.hide();}
+$('#umClose').onclick=closeUpgrade;
+$('#upgradeModal').onclick=e=>{if(e.target.id==='upgradeModal')closeUpgrade();};
 
 /* ----------  Opening: CSS swoop straight into the menu.
    Nothing 3D (no car, no garage) is rendered before the menu.  ---------- */
