@@ -30,16 +30,10 @@
   #menu .vignette{position:absolute;inset:0;
     background:radial-gradient(120% 90% at 50% 35%,transparent 40%,rgba(0,0,0,.55) 100%),
       linear-gradient(to bottom,rgba(0,0,0,.25),rgba(0,0,0,.0) 30%,rgba(0,0,0,.85));}
-  .menu-inner{position:relative;z-index:2;display:flex;flex-direction:column;
-    align-items:center;gap:14px;width:min(420px,86vw);
-    transform:translateY(8vh);}
-  .title-wrap{text-align:center;margin-bottom:6px}
-  .title{font-weight:900;letter-spacing:.18em;font-size:clamp(34px,7vw,68px);
-    background:linear-gradient(180deg,#fff,#cfd6ff 60%,#7f8bd6);
-    -webkit-background-clip:text;background-clip:text;color:transparent;
-    text-shadow:0 6px 30px rgba(40,80,255,.25);margin:0;}
-  .subtitle{letter-spacing:.42em;font-size:12px;color:#9fb0ff;margin-top:2px;
-    text-transform:uppercase;opacity:.9}
+  .menu-inner{position:absolute;left:50%;bottom:7vh;transform:translateX(-50%);z-index:2;
+    display:flex;flex-direction:column;align-items:center;gap:11px;width:min(380px,84vw)}
+  .menu-tag{font-size:10px;letter-spacing:.42em;color:#aab6e0;text-transform:uppercase;
+    margin-bottom:6px;opacity:.85}
   /* racing-styled buttons: angled edge, sheen sweep, glow on hover */
   .btn{cursor:pointer;border:none;width:100%;padding:16px 20px;
     font-size:15px;font-weight:800;letter-spacing:.14em;color:#fff;text-transform:uppercase;
@@ -67,8 +61,8 @@
   /* opening swoop: logo + UI sweep in from the side, settle */
   @keyframes swoopBg{0%{transform:scale(1.35) translateX(8%);opacity:0}
     60%{opacity:1}100%{transform:scale(1.08) translateX(0);opacity:1}}
-  @keyframes swoopUp{0%{transform:translateY(14vh) scale(.96);opacity:0;filter:blur(6px)}
-    100%{transform:translateY(8vh) scale(1);opacity:1;filter:blur(0)}}
+  @keyframes swoopUp{0%{transform:translateX(-50%) translateY(7vh) scale(.96);opacity:0;filter:blur(6px)}
+    100%{transform:translateX(-50%) translateY(0) scale(1);opacity:1;filter:blur(0)}}
   #menu.swoop .bgimg{animation:swoopBg 1.5s cubic-bezier(.16,.84,.3,1) both}
   #menu.swoop .menu-inner{animation:swoopUp 1.0s cubic-bezier(.16,.84,.3,1) .35s both}
 
@@ -432,10 +426,7 @@
     <div class="bgimg" id="menubg"></div>
     <div class="vignette"></div>
     <div class="menu-inner">
-      <div class="title-wrap">
-        <h1 class="title">URACING</h1>
-        <div class="subtitle">Unlimited</div>
-      </div>
+      <div class="menu-tag">UNLIMITED · SEASON 01</div>
       <button class="btn primary" id="btnPlay">RACE<span class="k">↵</span></button>
       <button class="btn ghost" id="btnNewTeam">NEW TEAM</button>
       <button class="btn ghost" id="btnReset">CLEAR SAVE</button>
