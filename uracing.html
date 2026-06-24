@@ -1054,14 +1054,15 @@ function buildTrack(scene, def){
   //   with the inside offset clamped to the corner radius so they can NEVER
   //   cross onto the racing surface. ----
   const WALL_OFF=HALF+34.0;          // brought in (still good runoff)
-  const wallH=2.7, capH=0.18;        // taller concrete barrier + top cap
+  const wallH=3.4, capH=0.22;        // taller branded barrier + top cap
+  const PANEL=13;                    // metres per sponsor panel (smaller, less stretched)
   const segLen=len/N;
   // per-sample clamped wall distance for each side (inside corners pull in)
   const woffL=new Float32Array(N+1), woffR=new Float32Array(N+1);
   for(let i=0;i<=N;i++){
     const t=turnS[i], R=segLen/Math.max(1e-4,Math.abs(t));
-    woffL[i]=(t> 1e-4)?Math.max(HALF+2.6,Math.min(WALL_OFF,0.82*R)):WALL_OFF;
-    woffR[i]=(t<-1e-4)?Math.max(HALF+2.6,Math.min(WALL_OFF,0.82*R)):WALL_OFF;
+    woffL[i]=(t> 1e-4)?Math.max(HALF+2.6,Math.min(WALL_OFF,0.70*R)):WALL_OFF;
+    woffR[i]=(t<-1e-4)?Math.max(HALF+2.6,Math.min(WALL_OFF,0.70*R)):WALL_OFF;
   }
   const sponMats=SPONSORS.map(s=>new THREE.MeshStandardMaterial({
     map:sponsorTex(s,outlinePts),metalness:.15,roughness:.78,side:THREE.DoubleSide}));
@@ -1086,16 +1087,23 @@ function buildTrack(scene, def){
     for(let s=0;s<3;s++){
       const i0=sb[s],i1=sb[s+1];
       const wp=[],wuv=[],widx=[], cp=[],cidx=[];
-      for(let i=i0;i<=i1;i++){
-        const p=offPt(i,sideSign);
+      const P=[]; for(let i=i0;i<=i1;i++) P.push(offPt(i,sideSign));
+      let acc=0;
+      for(let k=0;k<P.length;k++){
+        if(k>0) acc+=P[k].distanceTo(P[k-1]);
+        const p=P[k];
         wp.push(p.x,0,p.z, p.x,wallH,p.z);
-        const u=(i-i0)/(N/26); wuv.push(u,1, u,0);
+        // UV by real distance so panels are a fixed size; sign flips on the
+        // right wall so the text reads forward (not mirrored) on both sides
+        const u=acc/PANEL; wuv.push(u,0, u,1);
         cp.push(p.x,wallH,p.z, p.x,wallH+capH,p.z);
       }
-      for(let k=0;k<i1-i0;k++){
+      for(let k=0;k<P.length-1;k++){
         const gi=i0+k;
         // open the wall where the pitlane meets the track
         if(hasPit && sideSign===PIT_SIDE && gi>=PIT_A-4 && gi<PIT_B+4) continue;
+        // never draw a wall span that sits on/near the racing surface
+        if(globalNearestDist(P[k].x,P[k].z)<HALF+2 || globalNearestDist(P[k+1].x,P[k+1].z)<HALF+2) continue;
         const a=k*2;
         widx.push(a,a+1,a+2,a+1,a+3,a+2); cidx.push(a,a+1,a+2,a+1,a+3,a+2);}
       const wg=new THREE.BufferGeometry();
@@ -1234,31 +1242,34 @@ function buildEnvironment(scene, env){
     }
   }
 
-  // ---- distant relief: snow-capped peaks (alpine) or green hills (marsh) ----
+  // ---- distant relief ----
   const mtGroup=new THREE.Group();
   const rng=()=>Math.random();
-  const ringR=marsh?1500:1850;
-  for(let a=0;a<TAU;a+=TAU/(marsh?20:15)){
-    const r=ringR+(rng()-.5)*320;
-    const h=marsh?(90+rng()*120):(220+rng()*300);
-    const rad=marsh?(180+rng()*220):(160+rng()*200);
-    const geo=new THREE.ConeGeometry(rad,h,7+(rng()*4|0),1);
-    const pa=geo.attributes.position;
-    for(let i=0;i<pa.count;i++){
-      pa.setX(i,pa.getX(i)+(rng()-.5)*22);
-      pa.setZ(i,pa.getZ(i)+(rng()-.5)*22);
+  if(marsh){
+    // NO mountains for the marsh circuit — a flat, low distant treeline instead
+    const ringR=1250;
+    for(let a=0;a<TAU;a+=TAU/120){
+      const r=ringR+(rng()-.5)*180, h=40+rng()*55, rad=40+rng()*60;
+      const m=new THREE.Mesh(new THREE.ConeGeometry(rad,h,5,1),
+        new THREE.MeshStandardMaterial({color:new THREE.Color().setHSL(.32+rng()*.04,.45,.20+rng()*.05),
+          roughness:1,flatShading:true,fog:true}));
+      m.position.set(Math.cos(a)*r,h/2-8,Math.sin(a)*r);mtGroup.add(m);
     }
-    geo.computeVertexNormals();
-    const col=marsh?new THREE.Color().setHSL(.30+rng()*.05,.4,.28+rng()*.06)
-                   :new THREE.Color().setHSL(.28+rng()*.05,.25,.22+rng()*.08);
-    const m=new THREE.Mesh(geo,new THREE.MeshStandardMaterial({color:col,roughness:1,flatShading:true,fog:true}));
-    m.position.set(Math.cos(a)*r,h/2-12,Math.sin(a)*r);
-    mtGroup.add(m);
-    if(!marsh){
+  } else {
+    // alpine: snow-capped peaks
+    const ringR=1850;
+    for(let a=0;a<TAU;a+=TAU/15){
+      const r=ringR+(rng()-.5)*320, h=220+rng()*300, rad=160+rng()*200;
+      const geo=new THREE.ConeGeometry(rad,h,7+(rng()*4|0),1);
+      const pa=geo.attributes.position;
+      for(let i=0;i<pa.count;i++){pa.setX(i,pa.getX(i)+(rng()-.5)*22);pa.setZ(i,pa.getZ(i)+(rng()-.5)*22);}
+      geo.computeVertexNormals();
+      const col=new THREE.Color().setHSL(.28+rng()*.05,.25,.22+rng()*.08);
+      const m=new THREE.Mesh(geo,new THREE.MeshStandardMaterial({color:col,roughness:1,flatShading:true,fog:true}));
+      m.position.set(Math.cos(a)*r,h/2-12,Math.sin(a)*r);mtGroup.add(m);
       const cap=new THREE.Mesh(new THREE.ConeGeometry(rad*0.42,h*0.32,7,1),
         new THREE.MeshStandardMaterial({color:0xf3f6fb,roughness:.85,flatShading:true}));
-      cap.position.set(m.position.x,h-h*0.16-12,m.position.z);
-      mtGroup.add(cap);
+      cap.position.set(m.position.x,h-h*0.16-12,m.position.z);mtGroup.add(cap);
     }
   }
   scene.add(mtGroup);
@@ -1390,14 +1401,14 @@ const PHYS={
   steerLow:1.82,        // rad/s steering authority at low speed (less twitchy)
   steerHigh:0.70,       // at top speed (tighter/stable)
   steerSmooth:13,       // input smoothing rate (~75ms)
-  gripTarmac:6.4,       // lower grip -> the car is much harder to keep planted
-  gripGrass:2.0,        // grass is treacherous
-  gripKerb:5.0,         // kerbs unsettle the car more
-  handbrakeGrip:1.2,    // grip while drifting
-  driftAngleCap:1.05,   // bigger angles possible -> easier to spin
-  counterAssist:1.0,    // far less invisible help -> you must catch slides
-  exitBoost:5.0,
-  kerbDrag:11.0,        // kerbs scrub speed while you're on them
+  gripTarmac:5.2,       // low grip -> the car genuinely slides; you must manage it
+  gripGrass:1.5,        // grass is treacherous
+  gripKerb:4.2,         // kerbs really unsettle the car
+  handbrakeGrip:1.0,    // grip while drifting
+  driftAngleCap:1.2,    // bigger angles possible -> easier to spin
+  counterAssist:0.5,    // almost no invisible help -> you must catch slides
+  exitBoost:4.0,
+  kerbDrag:13.0,        // kerbs scrub speed while you're on them
   kerbShake:1.0         // visual elevation/vibration intensity on kerbs
 };
 
@@ -1466,7 +1477,7 @@ class CarSim{
     if(handbrake)grip=Math.min(grip,PHYS.handbrakeGrip);
     // snap oversteer when entering too hot: high speed + strong steer reduces grip
     const aggression=Math.abs(this.steer)*sp01;
-    if(aggression>0.40 && !handbrake) grip*=lerp(1,0.30,(aggression-0.40)/0.60);
+    if(aggression>0.28 && !handbrake) grip*=lerp(1,0.20,(aggression-0.28)/0.72);
     // bleed lateral velocity toward 0 (grip)
     vl-=vl*clamp(grip*dt,0,1);
     // when turning, redirect a portion of forward speed into new heading (creates slide)
