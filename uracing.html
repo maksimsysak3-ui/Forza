@@ -1433,8 +1433,8 @@ const CARS={
     color:'#ff7a00', accent:'#1a1d24',
     spd:32, acc:84, hnd:60 },
   isetta:{ name:'Isetta', sub:'Bubble · Delivery', data:CAR4_DATA, bubble:true,
-    // slow, weak, very hard to turn, tippy: a top-heavy three-wheeler
-    phys:{top:0.34,accel:0.62,brake:0.9,grip:0.74,steer:0.42},
+    // slow top end + very hard to turn + tippy, but enough torque to actually pull away
+    phys:{top:0.34,accel:1.15,brake:0.9,grip:0.74,steer:0.42},
     color:'#76d0e0', accent:'#ffffff',
     spd:22, acc:40, hnd:28 },
 };
@@ -3004,8 +3004,8 @@ class CarSim{
       if(vf<0) vf+=brakeDec*dt; // braking out of reverse
       vf+=accelRate*input.throttle*dt*(1-0.35*sp01); // curve tapers near top
     }
-    // drag
-    vf-=Math.sign(vf)*PHYS.rollDrag*dt;
+    // drag — rolling resistance eases off under power so weak cars can still pull away
+    vf-=Math.sign(vf)*PHYS.rollDrag*(input.throttle>0.1?0.3:1)*dt;
     vf-=vf*PHYS.engineDrag*dt*0.15;
     vf=clamp(vf,-PHYS.reverseSpeed,effTop);
 
