@@ -207,6 +207,12 @@
   .ch-unlock-head b{color:#ffd24a}
   .ch-unlock-bar{height:8px;border-radius:5px;background:rgba(120,140,255,.14);overflow:hidden}
   .ch-unlock-bar i{display:block;height:100%;background:linear-gradient(90deg,#ffb02e,#ff5a2a);transition:width .4s}
+  .ch-modes{display:flex;gap:10px;margin-bottom:14px}
+  .ch-mode{flex:1;cursor:pointer;border:1px solid rgba(120,140,255,.2);border-radius:12px;padding:13px;
+    background:linear-gradient(180deg,rgba(22,28,46,.6),rgba(12,16,28,.6));color:#aab6e0;
+    font-weight:800;font-size:14px;letter-spacing:.08em;transition:.16s}
+  .ch-mode:hover{border-color:rgba(150,170,255,.45)}
+  .ch-mode.active{border-color:#f4a300;color:#fff;background:linear-gradient(180deg,rgba(80,55,10,.5),rgba(40,28,8,.5))}
   .ch-group-h{font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:#8a96c2;margin:16px 0 8px}
   .ch-list{display:flex;flex-direction:column;gap:9px}
   .ch-card{display:flex;align-items:center;gap:14px;padding:13px 15px;border-radius:13px;
@@ -505,6 +511,30 @@
   .g-num.boost{color:#ff4d4d!important}
   /* karts have no turbo / fuel / damage system — hide those gauges */
   #hud.kart .turbo-tag, #hud.kart .fuel, #hud.kart .dmgbox{display:none!important}
+  /* Delivery Dash overlay */
+  .dd{display:none;position:absolute;inset:0;pointer-events:none;z-index:7}
+  #hud.delivery .dd{display:block}
+  #hud.delivery .fuel,#hud.delivery .turbo-tag,#hud.delivery .hud-timing,#hud.delivery .sectors{display:none!important}
+  .dd-top{position:absolute;top:18px;left:50%;transform:translateX(-50%);display:flex;gap:14px;align-items:stretch}
+  .dd-obj{background:linear-gradient(180deg,rgba(14,18,30,.92),rgba(9,11,20,.92));
+    border:1px solid rgba(120,140,255,.2);border-left:3px solid #f4a300;border-radius:12px;
+    padding:9px 16px;min-width:200px;position:relative}
+  .dd-obj span{font-size:10px;letter-spacing:.2em;color:#f4b942;display:block}
+  .dd-obj b{font-size:17px;font-weight:800;display:block;margin-top:1px}
+  .dd-arrow{position:absolute;right:12px;top:50%;transform:translateY(-50%);font-size:22px;color:#5ef08a;
+    font-style:normal;transition:transform .1s linear}
+  .dd-meta{display:flex;gap:10px}
+  .dd-meta>div{background:linear-gradient(180deg,rgba(14,18,30,.92),rgba(9,11,20,.92));
+    border:1px solid rgba(120,140,255,.18);border-radius:12px;padding:9px 14px;text-align:center;min-width:64px}
+  .dd-meta span{font-size:9px;letter-spacing:.18em;color:#8a96c2;display:block}
+  .dd-meta b{font-size:18px;font-weight:800;font-variant-numeric:tabular-nums}
+  .dd-clock.low b{color:#ff5a5a}
+  .dd-wanted b{color:#ff5a5a;letter-spacing:.05em}
+  .dd-flash{position:absolute;top:40%;left:50%;transform:translate(-50%,-50%);
+    font-size:34px;font-weight:900;letter-spacing:.04em;color:#fff;text-shadow:0 4px 24px rgba(0,0,0,.6);
+    opacity:0;transition:opacity .2s}
+  .dd-flash.show{opacity:1}
+  .dd-flash.bad{color:#ff6a6a}.dd-flash.good{color:#5ef08a}
   /* damage box (race HUD) */
   .dmgbox{position:absolute;right:258px;bottom:30px;display:flex;flex-direction:column;align-items:center;
     gap:4px;padding:7px 9px 5px;background:rgba(10,13,22,.72);border:1px solid rgba(130,150,255,.2);
@@ -636,6 +666,20 @@
     <div class="dmgbox" id="dmgBox" title="Inspect car damage">
       <canvas id="dmgMini" width="48" height="72"></canvas>
       <span class="dl">DMG <b id="dmgPct">0%</b></span>
+    </div>
+
+    <!-- Delivery Dash overlay (city only) -->
+    <div class="dd" id="dd">
+      <div class="dd-top">
+        <div class="dd-obj"><span id="ddPhase">PICK UP</span><b id="ddTarget">The Store</b>
+          <i class="dd-arrow" id="ddArrow">▲</i></div>
+        <div class="dd-meta">
+          <div class="dd-clock"><span>TIME</span><b id="ddTime">2:00</b></div>
+          <div class="dd-score"><span>SCORE</span><b id="ddScore">0</b></div>
+          <div class="dd-wanted" id="ddWanted"><span>WANTED</span><b id="ddStars">—</b></div>
+        </div>
+      </div>
+      <div class="dd-flash" id="ddFlash"></div>
     </div>
 
     <div class="raceflash" id="raceflash">3</div>
@@ -828,6 +872,10 @@
       <div class="ch-unlock">
         <div class="ch-unlock-head"><span>Next Car Unlock</span><b id="chUnlockPct">0%</b></div>
         <div class="ch-unlock-bar"><i id="chUnlockFill" style="width:0%"></i></div>
+      </div>
+      <div class="ch-modes">
+        <button class="ch-mode active" data-cmode="kart">🏁 GO KART MANIA</button>
+        <button class="ch-mode" data-cmode="delivery">📦 DELIVERY DASH</button>
       </div>
       <div class="ch-list" id="chList"></div>
     </div>
@@ -1578,6 +1626,213 @@ function cityCollide(x,z,R){
   if(x<b.minX+M){x=b.minX+M;nx=1;nz=0;bumped=true;} else if(x>b.maxX-M){x=b.maxX-M;nx=-1;nz=0;bumped=true;}
   if(z<b.minZ+M){z=b.minZ+M;nx=0;nz=1;bumped=true;} else if(z>b.maxZ-M){z=b.maxZ-M;nx=0;nz=-1;bumped=true;}
   return bumped?{x,z,nx,nz}:null;
+}
+
+/* ======================================================================
+   Delivery Dash: pick up at the store, drive across the city, deliver.
+   Traffic, red lights (runnable but the law notices), a clock and a score.
+   ====================================================================== */
+const DELIVERY={active:false};
+if(location.hash==='#debug')setTimeout(()=>{window.__DELIVERY=DELIVERY;},0);
+function roadPoint(awayFrom){
+  const b=CITY.bounds;
+  for(let tries=0;tries<40;tries++){
+    let x,z;
+    if(Math.random()<0.5){ x=CITY.AV[(Math.random()*CITY.AV.length)|0]; z=lerp(b.minZ+14,b.maxZ-14,Math.random()); }
+    else { z=CITY.ST[(Math.random()*CITY.ST.length)|0]; x=lerp(b.minX+14,b.maxX-14,Math.random()); }
+    if(!awayFrom || Math.hypot(x-awayFrom.x,z-awayFrom.z)>140) return {x,z};
+  }
+  return {x:CITY.AV[0], z:0};
+}
+function makeMarker(color){
+  const g=new THREE.Group();
+  const beam=new THREE.Mesh(new THREE.CylinderGeometry(2.6,2.6,30,16,1,true),
+    new THREE.MeshBasicMaterial({color,transparent:true,opacity:0.32,side:THREE.DoubleSide,depthWrite:false}));
+  beam.position.y=15; g.add(beam);
+  const ring=new THREE.Mesh(new THREE.RingGeometry(2.4,3.4,24),
+    new THREE.MeshBasicMaterial({color,transparent:true,opacity:0.8,side:THREE.DoubleSide,depthWrite:false}));
+  ring.rotation.x=-Math.PI/2; ring.position.y=0.1; g.add(ring);
+  g.userData.beam=beam; return g;
+}
+function makeTrafficCar(color){
+  const g=new THREE.Group();
+  const body=new THREE.Mesh(new THREE.BoxGeometry(2.2,1.3,4.4),new THREE.MeshStandardMaterial({color,roughness:.5,metalness:.2}));
+  body.position.y=0.85; body.castShadow=true; g.add(body);
+  const cab=new THREE.Mesh(new THREE.BoxGeometry(2.0,1.0,2.2),new THREE.MeshStandardMaterial({color:0x223044,roughness:.3,metalness:.4}));
+  cab.position.set(0,1.7,-0.2); g.add(cab);
+  const wm=new THREE.MeshStandardMaterial({color:0x14151a,roughness:.9});
+  [[-1.0,1.4],[1.0,1.4],[-1.0,-1.4],[1.0,-1.4]].forEach(o=>{const w=new THREE.Mesh(new THREE.CylinderGeometry(0.45,0.45,0.3,10),wm);
+    w.rotation.z=Math.PI/2; w.position.set(o[0],0.45,o[1]); g.add(w);});
+  return g;
+}
+function clearDeliveryWorld(){
+  if(DELIVERY.group && DELIVERY.group.parent) DELIVERY.group.parent.remove(DELIVERY.group);
+  DELIVERY.group=null; DELIVERY.traffic=[]; DELIVERY.pickMk=DELIVERY.dropMk=null; DELIVERY.pkg=null;
+}
+function setupDeliveryWorld(){
+  clearDeliveryWorld();
+  const grp=new THREE.Group(); DELIVERY.group=grp; race.scene.add(grp);
+  // pickup + dropoff markers
+  DELIVERY.pickMk=makeMarker(0x35e07a); grp.add(DELIVERY.pickMk);
+  DELIVERY.dropMk=makeMarker(0xf4a300); grp.add(DELIVERY.dropMk);
+  // package mesh that rides on the car once collected
+  const pkg=new THREE.Group();
+  const crate=new THREE.Mesh(new THREE.BoxGeometry(1.0,0.9,1.0),new THREE.MeshStandardMaterial({color:0xc18a4a,roughness:.8}));
+  crate.position.y=0.45; pkg.add(crate);
+  const tape=new THREE.Mesh(new THREE.BoxGeometry(1.02,0.18,1.02),new THREE.MeshStandardMaterial({color:0x9a6a32}));
+  tape.position.y=0.55; pkg.add(tape);
+  pkg.visible=false; grp.add(pkg); DELIVERY.pkg=pkg;
+  // traffic cars along the grid
+  DELIVERY.traffic=[];
+  const tcol=[0xd23b3b,0x3a6cc4,0xe0b020,0x2f9e5e,0xdddddd,0x8c5ab0];
+  const b=CITY.bounds;
+  for(let i=0;i<14;i++){
+    const onAv=Math.random()<0.5;
+    const car={mesh:makeTrafficCar(tcol[i%tcol.length]), onAv, dir:Math.random()<0.5?1:-1, speed:9+Math.random()*7};
+    if(onAv){ car.line=CITY.AV[(Math.random()*CITY.AV.length)|0]; car.pos=lerp(b.minZ+10,b.maxZ-10,Math.random()); car.lane=car.dir>0?3.5:-3.5; }
+    else { car.line=CITY.ST[(Math.random()*CITY.ST.length)|0]; car.pos=lerp(b.minX+10,b.maxX-10,Math.random()); car.lane=car.dir>0?3.5:-3.5; }
+    grp.add(car.mesh); DELIVERY.traffic.push(car);
+  }
+}
+function newDeliveryLeg(){
+  const here={x:sim.x,z:sim.z};
+  DELIVERY.pickup=roadPoint(here);
+  DELIVERY.dropoff=roadPoint(DELIVERY.pickup);
+  DELIVERY.phase='pickup';
+  DELIVERY.pickMk.position.set(DELIVERY.pickup.x,0,DELIVERY.pickup.z); DELIVERY.pickMk.visible=true;
+  DELIVERY.dropMk.visible=false; DELIVERY.pkg.visible=false;
+  $('#ddPhase').textContent='PICK UP'; $('#ddTarget').textContent='The Store';
+  ddFlash('NEW JOB — head to the store','good');
+}
+function ddFlash(txt,cls){ const f=$('#ddFlash'); f.textContent=txt; f.className='dd-flash show '+(cls||'');
+  clearTimeout(f._t); f._t=setTimeout(()=>f.className='dd-flash',1500); }
+function startDelivery(opts){
+  opts=opts||{};
+  DELIVERY.active=true; DELIVERY.total=opts.deliveries||3; DELIVERY.delivered=0;
+  DELIVERY.time=opts.time||150; DELIVERY.score=0; DELIVERY.wanted=0; DELIVERY.reward=opts.reward||{rp:8,money:200000};
+  DELIVERY.id=opts.id||null;
+  forceCar='isetta';
+  startRace('city','solo',1,0);
+  document.getElementById('hud').classList.add('delivery');
+  setupDeliveryWorld();
+  newDeliveryLeg();
+  sim.onFlip=()=>{ DELIVERY.score=Math.max(0,DELIVERY.score-40); ddFlash('FLIPPED! −40','bad'); };
+  sim.onCityHit=(imp)=>{ if(imp>0.3){ DELIVERY.score=Math.max(0,DELIVERY.score-15); } };
+}
+function cityUpdate(dt){
+  if(!DELIVERY.active) return;
+  // ---- clock ----
+  DELIVERY.time-=dt;
+  if(DELIVERY.time<=0){ DELIVERY.time=0; finishDelivery(false); return; }
+  const mm=Math.floor(DELIVERY.time/60), ss=Math.floor(DELIVERY.time%60);
+  $('#ddTime').textContent=mm+':'+(ss<10?'0':'')+ss;
+  $('#ddTime').parentElement.classList.toggle('low',DELIVERY.time<20);
+  // ---- traffic lights cycle (period 9s; avenues green first half) ----
+  DELIVERY.lightT=(DELIVERY.lightT||0)+dt;
+  const avGreen=((DELIVERY.lightT%9)<4.3);
+  for(const L of CITY.lights){ L.avGreen=avGreen;
+    L.red.emissiveIntensity = avGreen?0.05:1.4; L.grn.emissiveIntensity = avGreen?1.4:0.05; }
+  // ---- traffic cars ----
+  const b=CITY.bounds;
+  for(const c of DELIVERY.traffic){
+    // stop if approaching a red intersection
+    let stop=false;
+    for(const sz of (c.onAv?CITY.ST:CITY.AV)){
+      const ahead=(sz-c.pos)*c.dir;
+      if(ahead>1 && ahead<10){ // intersection ahead — red if its cross-light is red for our axis
+        if(c.onAv ? !avGreen : avGreen) stop=true; break;
+      }
+    }
+    if(!stop) c.pos += c.dir*c.speed*dt;
+    if(c.onAv){ if(c.pos>b.maxZ-8)c.pos=b.minZ+8; if(c.pos<b.minZ+8)c.pos=b.maxZ-8;
+      c.mesh.position.set(c.line+c.lane,0,c.pos); c.mesh.rotation.y=c.dir>0?0:Math.PI; }
+    else { if(c.pos>b.maxX-8)c.pos=b.minX+8; if(c.pos<b.minX+8)c.pos=b.maxX-8;
+      c.mesh.position.set(c.pos,0,c.line+c.lane); c.mesh.rotation.y=c.dir>0?Math.PI/2:-Math.PI/2; }
+    // collide with player
+    const dx=sim.x-c.mesh.position.x, dz=sim.z-c.mesh.position.z, d=Math.hypot(dx,dz);
+    if(d<3.0 && d>0.001){ const nx=dx/d,nz=dz/d,push=(3.0-d);
+      sim.x+=nx*push; sim.z+=nz*push;
+      const into=sim.vx*-nx+sim.vz*-nz; if(into>0){ sim.vx+=into*nx*1.4; sim.vz+=into*nz*1.4; }
+      if(!c._hitCd||performance.now()-c._hitCd>1200){ c._hitCd=performance.now();
+        DELIVERY.score=Math.max(0,DELIVERY.score-10); camShake(0.3); }
+    }
+  }
+  // ---- red-light running: at a crossing while your axis is red ----
+  const nearAv=CITY.AV.find(x=>Math.abs(sim.x-x)<CITY.roadHalf);
+  const nearSt=CITY.ST.find(z=>Math.abs(sim.z-z)<CITY.roadHalf);
+  const atCross = nearAv!==undefined && nearSt!==undefined;
+  const movingZ=Math.abs(sim.vz)>Math.abs(sim.vx);
+  if(atCross && sim.speed>6){
+    const myRed = movingZ ? !avGreen : avGreen;   // on an avenue you travel in z
+    if(myRed && DELIVERY._lastCross!==nearAv+'_'+nearSt){
+      DELIVERY._lastCross=nearAv+'_'+nearSt;
+      DELIVERY.score=Math.max(0,DELIVERY.score-25); DELIVERY.wanted=Math.min(5,DELIVERY.wanted+1);
+      ddFlash('RAN A RED LIGHT! −25','bad'); audioHit(0.3);
+    }
+  } else if(!atCross){ DELIVERY._lastCross=null; }
+  $('#ddStars').textContent = DELIVERY.wanted?('★'.repeat(DELIVERY.wanted)):'—';
+  $('#ddWanted').style.opacity = DELIVERY.wanted?1:0.4;
+  // ---- pickup / dropoff proximity ----
+  const tgt = DELIVERY.phase==='pickup'?DELIVERY.pickup:DELIVERY.dropoff;
+  if(tgt){
+    const d=Math.hypot(sim.x-tgt.x,sim.z-tgt.z);
+    if(d<4.5){
+      if(DELIVERY.phase==='pickup'){
+        DELIVERY.phase='dropoff'; DELIVERY.pickMk.visible=false; DELIVERY.dropMk.position.set(DELIVERY.dropoff.x,0,DELIVERY.dropoff.z);
+        DELIVERY.dropMk.visible=true; DELIVERY.pkg.visible=true;
+        $('#ddPhase').textContent='DELIVER'; $('#ddTarget').textContent='Drop-off';
+        ddFlash('PACKAGE LOADED — deliver it!','good');
+      }else{
+        DELIVERY.delivered++; DELIVERY.score+=200+Math.max(0,Math.floor(DELIVERY.time))*2;
+        DELIVERY.pkg.visible=false; DELIVERY.dropMk.visible=false;
+        if(DELIVERY.delivered>=DELIVERY.total){ finishDelivery(true); return; }
+        ddFlash('DELIVERED! +200','good'); newDeliveryLeg();
+      }
+    }
+  }
+  // package rides on the roof while carrying
+  if(DELIVERY.pkg.visible){ const f=sim.fwd();
+    DELIVERY.pkg.position.set(sim.x - f[0]*0.2, 1.5, sim.z - f[1]*0.2); DELIVERY.pkg.rotation.y=sim.heading; }
+  // pulse the markers
+  const t=performance.now()*0.004;
+  if(DELIVERY.pickMk.visible) DELIVERY.pickMk.userData.beam.material.opacity=0.22+0.12*Math.sin(t);
+  if(DELIVERY.dropMk.visible) DELIVERY.dropMk.userData.beam.material.opacity=0.22+0.12*Math.sin(t);
+  // ---- HUD: score + compass arrow to target ----
+  $('#ddScore').textContent=Math.round(DELIVERY.score);
+  if(tgt){ const bearing=Math.atan2(tgt.x-sim.x, tgt.z-sim.z) - sim.heading;
+    $('#ddArrow').style.transform=`translateY(-50%) rotate(${(-bearing*180/Math.PI)}deg)`; }
+}
+function finishDelivery(success){
+  DELIVERY.active=false; raceState='finished';
+  const r=DELIVERY.reward||{}, base=DELIVERY.score;
+  const parts=[];
+  if(success){
+    ensureEconomy(GAME.team);
+    if(r.rp){GAME.team.rp+=r.rp;parts.push(r.rp+' RP');}
+    if(r.money){GAME.team.money+=r.money;parts.push(fmtMoney(r.money));}
+    // bonus RP scaled by score (your "dev tab upgrades")
+    const bonusRP=Math.floor(base/200); if(bonusRP){GAME.team.rp+=bonusRP;parts.push('+'+bonusRP+' bonus RP');}
+    if(DELIVERY.id){ GAME.team.challenges=GAME.team.challenges||[]; if(!GAME.team.challenges.includes(DELIVERY.id))GAME.team.challenges.push(DELIVERY.id); }
+    writeSave({team:GAME.team});
+    flash('ALL DELIVERED'); ddFlash('JOB COMPLETE — '+parts.join(' · '),'good');
+  }else{ flash("TIME'S UP"); ddFlash('Out of time — score '+Math.round(base),'bad'); }
+  setTimeout(()=>{ document.getElementById('hud').classList.remove('delivery'); clearDeliveryWorld();
+    DELIVERY.id=null; exitRace(); }, 2600);
+}
+function drawCityMinimap(){
+  const cv=$('#minimap'); if(!cv)return; const x=cv.getContext('2d'), W=cv.width, H=cv.height;
+  x.clearRect(0,0,W,H); const b=CITY.bounds, sx=W/(b.maxX-b.minX), sz=H/(b.maxZ-b.minZ);
+  const X=wx=>(wx-b.minX)*sx, Z=wz=>(wz-b.minZ)*sz;
+  x.fillStyle='rgba(10,13,22,.6)'; x.fillRect(0,0,W,H);
+  x.strokeStyle='rgba(150,160,180,.5)'; x.lineWidth=3;
+  CITY.AV.forEach(ax=>{x.beginPath();x.moveTo(X(ax),0);x.lineTo(X(ax),H);x.stroke();});
+  CITY.ST.forEach(sz2=>{x.beginPath();x.moveTo(0,Z(sz2));x.lineTo(W,Z(sz2));x.stroke();});
+  const tgt=DELIVERY.phase==='pickup'?DELIVERY.pickup:DELIVERY.dropoff;
+  if(tgt){ x.fillStyle=DELIVERY.phase==='pickup'?'#35e07a':'#f4a300';
+    x.beginPath();x.arc(X(tgt.x),Z(tgt.z),7,0,TAU);x.fill(); }
+  if(DELIVERY.traffic) { x.fillStyle='#ff6a6a'; DELIVERY.traffic.forEach(c=>{x.fillRect(X(c.mesh.position.x)-2,Z(c.mesh.position.z)-2,4,4);}); }
+  if(sim){ x.save(); x.translate(X(sim.x),Z(sim.z)); x.rotate(sim.heading);
+    x.fillStyle='#fff'; x.beginPath(); x.moveTo(0,-7); x.lineTo(5,6); x.lineTo(-5,6); x.closePath(); x.fill(); x.restore(); }
 }
 
 function buildTrack(scene, def){
@@ -2820,11 +3075,11 @@ class CarSim{
         // reflect & damp
         this.vx-=(1+absorb)*into*nl.x*side;
         this.vz-=(1+absorb)*into*nl.z*side;
-        if(ang>0.25){audioHit(ang* (this.speed/PHYS.topSpeed));camShake(ang*0.6);}
-        // ---- accumulate crash damage (squared so taps barely hurt, big hits cost) ----
+        if(ang>0.18){audioHit(ang* (this.speed/PHYS.topSpeed));camShake(ang*0.6);}
+        // ---- accumulate crash damage (any real contact registers now) ----
         const impact=ang*(this.speed/PHYS.topSpeed);
-        if(impact>0.18 && this.dmg){
-          const add=impact*impact*60;
+        if(impact>0.08 && this.dmg){
+          const add=impact*impact*120 + impact*8;     // more punishing so wall hits clearly damage
           this.damage=Math.min(100,this.damage+add);
           // route to the panel that hit: compare wall normal to car's own axes
           const f=this.fwd(), rx=f[1], rz=-f[0];
@@ -3370,6 +3625,24 @@ function buildChallengesTab(){
   $('#chUnlockPct').textContent=(CAR_ORDER.length-owned>0)?pct+'%':'All cars unlocked';
   $('#chUnlockFill').style.width=(CAR_ORDER.length-owned>0?pct:100)+'%';
   const host=$('#chList'); host.innerHTML='';
+  if(chMode==='delivery'){
+    const h=document.createElement('div'); h.className='ch-group-h';
+    h.textContent='Sunnyside City · drive the Isetta, beat the clock, mind the law';
+    host.appendChild(h);
+    DELIVERIES.forEach(dv=>{
+      const done=chDone(dv.id), r=dv.reward||{}, rew=[];
+      if(r.money)rew.push(fmtMoney(r.money)); if(r.rp)rew.push(r.rp+' RP');
+      const card=document.createElement('div'); card.className='ch-card'+(done?' done':'');
+      card.innerHTML=`<span class="ch-type" style="background:#f4a300">DELIVERY</span>
+        <div class="ch-main"><div class="ch-name">${dv.title}</div>
+          <div class="ch-desc">${dv.desc} · ${Math.floor(dv.time/60)}:${('0'+dv.time%60).slice(-2)} limit</div>
+          <div class="ch-rew">Reward: ${rew.join(' · ')} · dev-tab upgrades</div></div>
+        <button class="ch-go${done?'':''}">${done?'✓ REPLAY':'START'}</button>`;
+      card.querySelector('.ch-go').onclick=()=>startDelivery(dv);
+      host.appendChild(card);
+    });
+    return;
+  }
   ['kart1','kart2','kart3'].forEach(tk=>{
     const h=document.createElement('div'); h.className='ch-group-h';
     h.textContent=(TRACKS[tk]?TRACKS[tk].name:tk)+' · '+(TRACKS[tk]?TRACKS[tk].blurb:'');
@@ -3390,6 +3663,12 @@ function buildChallengesTab(){
     });
   });
 }
+let chMode='kart';
+document.querySelectorAll('.ch-mode').forEach(btn=>btn.onclick=()=>{
+  chMode=btn.dataset.cmode;
+  document.querySelectorAll('.ch-mode').forEach(b=>b.classList.toggle('active',b===btn));
+  buildChallengesTab();
+});
 function buildStaffTab(){
   ensureEconomy(GAME.team);
   const staff=GAME.team.staff||[];
@@ -3475,6 +3754,11 @@ const CHALLENGES=[
   {id:'k3c',track:'kart3',type:'beattime',title:'King of the Dome',desc:'Beat the 1:10 benchmark lap',target:70,reward:{money:500000,rp:10},unlock:40},
 ];
 const CH_TYPE={timetrial:'TIME TRIAL',beattime:'BEAT THE TIME',beatai:'BEAT THE AI',clean:'CLEAN LAP'};
+const DELIVERIES=[
+  {id:'dd1',title:'Corner Shop Run',desc:'Make 2 deliveries before time runs out',deliveries:2,time:140,reward:{rp:8,money:200000}},
+  {id:'dd2',title:'Lunch Rush',      desc:'Make 3 deliveries — beat the clock and the law',deliveries:3,time:185,reward:{rp:14,money:350000}},
+  {id:'dd3',title:'City Sprint',     desc:'Make 4 deliveries across town',deliveries:4,time:230,reward:{rp:22,money:550000}},
+];
 const UNLOCK_COST=100;
 function chDone(id){ return (GAME.team.challenges||[]).includes(id); }
 function startChallenge(ch){
@@ -4061,7 +4345,7 @@ function startWeekend(track,laps,aiCount){
   else startQuali();
 }
 function startQuali(){
-  startRace(weekend.track,'quali',3,0);
+  startRace(weekend.track,'quali',2,0);   // warm-up lap + flying lap = 2
   toast('Warm-up lap, then a flying lap to set your time');
 }
 if(location.hash==='#debug')window.__qualiFinish=(t)=>qualiFinish(t);
@@ -4305,14 +4589,20 @@ function aiControl(ai,opp,dt){
   let curveAhead=0;
   for(let k=2;k<=lookN;k++){const a=tan[(i+k)%N],b=tan[(i+k-2+N)%N];
     curveAhead+=Math.abs(a.x*b.z-a.z*b.x);}              // ~ total upcoming turn (rad)
-  const cornerSpeed=clamp(topV*(1-curveAhead*0.62), 18, topV);
-  let throttle=1,brake=0;
+  const cornerSpeed=clamp(topV*(1-curveAhead*0.78), 12, topV);   // brake harder for tight turns
+  let throttle=1,brake=0,steerOut=steer;
   if(spd>cornerSpeed+1){ brake=clamp((spd-cornerSpeed)/10,0,1); throttle=0; }
   else if(spd>cornerSpeed-3){ throttle=0.5; }            // coast near the limit
-  // if badly off the line, ease off so it can recover instead of flying off
-  if(Math.abs(aiLat)>HALF*0.9){ throttle*=0.5; }
+  // running wide: stop attacking the offset and steer firmly back to the centre line
+  if(Math.abs(aiLat)>HALF*0.8){
+    const back=clamp(-aiLat/HALF,-1,1);
+    steerOut=clamp(steer*0.4 + back*1.0,-1,1);
+    throttle=Math.min(throttle,0.6); brake=0;
+  }
+  // pinned against a wall (slow + off-line): crawl back onto the track instead of stalling
+  if(spd<5 && Math.abs(aiLat)>HALF*0.55){ throttle=0.85; brake=0; steerOut=clamp(-Math.sign(aiLat)*0.95,-1,1); }
   if(dseg<0 && dseg>-6 && dist<5.5) throttle*=0.3;       // don't rear-end the player
-  return {throttle,brake,steer,handbrake:false};
+  return {throttle,brake,steer:steerOut,handbrake:false};
 }
 function prog(s){ if(s._lastSeg===undefined){s._lastSeg=s.seg;s._laps=0;}
   if(s._lastSeg>TRACK.N*0.7 && s.seg<TRACK.N*0.3)s._laps++;
@@ -4524,8 +4814,9 @@ function raceUpdate(dt){
   // ---- fuel burn (by distance so it's lap-count independent) + turbo drain ----
   // karts have no fuel/turbo system, so skip it entirely (gauge is hidden)
   if(!kartDrive){
-    const burnPerM = (3.33/Math.max(1,TRACK._segLen?TRACK._segLen*N:1400));  // ~3.33 gal/lap
+    const burnPerM = (2.1/Math.max(1,TRACK._segLen?TRACK._segLen*N:1400));   // gentler ~2.1 gal/lap
     sim.fuel -= sim.speed*dt*burnPerM;
+    if(Input.brake>0.1 && sim.fuel<fuelMax) sim.fuel += 0.9*dt;              // coast/brake recovers fuel
     if(turboOn) sim.fuel -= 0.10*dt;              // ~1% of a 20-gal tank per 2s
     if(sim.fuel<=0){ sim.fuel=0; turboOn=false; sim.boost=false; }   // out of fuel -> no power
     sim.outOfFuel = sim.fuel<=0;
