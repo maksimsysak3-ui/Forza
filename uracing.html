@@ -198,6 +198,14 @@
     mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M3 13l2-5h14l2 5v5h-3v-2H6v2H3z' fill='none' stroke='black' stroke-width='2'/%3E%3C/svg%3E")}
   .sbi-s{-webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M9 11a3 3 0 100-6 3 3 0 000 6zM3 20c0-3 3-5 6-5s6 2 6 5M17 14c2 0 4 1.5 4 4' fill='none' stroke='black' stroke-width='2'/%3E%3C/svg%3E");
     mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M9 11a3 3 0 100-6 3 3 0 000 6zM3 20c0-3 3-5 6-5s6 2 6 5M17 14c2 0 4 1.5 4 4' fill='none' stroke='black' stroke-width='2'/%3E%3C/svg%3E")}
+  .sbi-t{-webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 2l3 6 6 1-4.5 4.5L18 20l-6-3-6 3 1.5-6.5L3 9l6-1z' fill='none' stroke='black' stroke-width='2'/%3E%3C/svg%3E");
+    mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 2l3 6 6 1-4.5 4.5L18 20l-6-3-6 3 1.5-6.5L3 9l6-1z' fill='none' stroke='black' stroke-width='2'/%3E%3C/svg%3E")}
+  .ch-soon{margin-top:18px;padding:40px 24px;text-align:center;border-radius:16px;
+    background:linear-gradient(180deg,rgba(20,25,42,.6),rgba(11,15,26,.6));
+    border:1px dashed rgba(120,140,255,.22)}
+  .ch-soon-i{font-size:42px;margin-bottom:10px}
+  .ch-soon-t{font-size:20px;font-weight:800;margin-bottom:8px}
+  .ch-soon-s{font-size:13px;color:#8a96c2;max-width:440px;margin:0 auto;line-height:1.6}
   /* staff tab */
   .staff-summary{display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap}
   .ss-card{flex:1;min-width:150px;background:linear-gradient(180deg,rgba(22,28,46,.7),rgba(12,16,28,.7));
@@ -477,6 +485,16 @@
     color:#ff4d4d;opacity:0;transition:.15s}
   .turbo-tag.on{opacity:1}
   .g-num.boost{color:#ff4d4d!important}
+  /* damage box (race HUD) */
+  .dmgbox{position:absolute;right:258px;bottom:30px;display:flex;flex-direction:column;align-items:center;
+    gap:4px;padding:7px 9px 5px;background:rgba(10,13,22,.72);border:1px solid rgba(130,150,255,.2);
+    border-radius:10px;cursor:pointer;z-index:6;transition:border-color .15s;pointer-events:auto}
+  .dmgbox:hover{border-color:rgba(255,120,120,.6)}
+  .dmgbox .dl{font-size:9px;letter-spacing:.12em;color:#9aa6d0}
+  .dmgbox .dl b{color:#fff;font-variant-numeric:tabular-nums}
+  .dmg-legend{display:flex;justify-content:center;gap:16px;font-size:11px;color:#9aa6d0;margin-bottom:8px}
+  .dmg-legend i{display:inline-block;width:11px;height:11px;border-radius:3px;margin-right:5px;vertical-align:-1px}
+  .dmg-note{font-size:12px;color:#8a96c2;text-align:center;line-height:1.5;padding:0 8px}
 
   /* ---------- Intro / loader ---------- */
   #loader{position:fixed;inset:0;z-index:9;background:#05070d;display:flex;
@@ -545,6 +563,12 @@
     </div>
     <div class="turbo-tag" id="turboTag">TURBO</div>
     <div class="fuel" id="fuel"><i id="fuelFill" style="height:100%"></i><span class="fl">FUEL</span></div>
+
+    <!-- damage box: click to inspect -->
+    <div class="dmgbox" id="dmgBox" title="Inspect car damage">
+      <canvas id="dmgMini" width="48" height="72"></canvas>
+      <span class="dl">DMG <b id="dmgPct">0%</b></span>
+    </div>
 
     <div class="raceflash" id="raceflash">3</div>
   </div>
@@ -669,6 +693,7 @@
         <button class="sb-tab" data-tab="calendar"><i class="sbi sbi-c"></i><span>Calendar</span></button>
         <button class="sb-tab" data-tab="dev"><i class="sbi sbi-d"></i><span>Development</span></button>
         <button class="sb-tab" data-tab="staff"><i class="sbi sbi-s"></i><span>Staff</span></button>
+        <button class="sb-tab" data-tab="challenges"><i class="sbi sbi-t"></i><span>Challenges</span></button>
       </nav>
       <div class="sb-actions">
         <button class="btn primary" id="btnRace">RACE</button>
@@ -721,6 +746,22 @@
         <div class="bay-label">Development Bay</div>
       </div>
       <div class="dev-parts" id="devParts"></div>
+    </div>
+
+    <!-- CHALLENGES tab -->
+    <div class="tabview panelview hidden" id="tab-challenges">
+      <div class="tab-head"><h2>Challenges</h2>
+        <div class="tab-sub">Win challenges to unlock cars and earn spare parts for repairs</div></div>
+      <div class="staff-summary">
+        <div class="ss-card"><span>Cars Owned</span><b id="chOwned">1</b></div>
+        <div class="ss-card"><span>Cars Locked</span><b id="chLocked">1</b></div>
+        <div class="ss-card"><span>Spare Parts</span><b id="chParts">0</b></div>
+      </div>
+      <div class="ch-soon">
+        <div class="ch-soon-i">🏁</div>
+        <div class="ch-soon-t">Challenges are coming soon</div>
+        <div class="ch-soon-s">Beat target times and rival teams to unlock locked cars and collect spare parts. When a car is destroyed, spend a spare part to rebuild it.</div>
+      </div>
     </div>
 
     <!-- STAFF tab -->
@@ -782,6 +823,29 @@
     <div class="lt" style="color:#ff7a7a">ENGINE FAILED TO START</div>
     <div id="errmsg" style="color:#9aa6d0;max-width:480px"></div>
   </div>
+
+  <!-- damage inspection popup -->
+  <div class="rcmodal" id="dmgModal">
+    <div class="rcm-card" style="max-width:430px">
+      <button class="um-close" id="dmgClose">×</button>
+      <div class="rcm-head"><div class="rcm-k">Condition</div><h2>Car Damage</h2></div>
+      <canvas id="dmgCanvas" width="300" height="420" style="display:block;margin:6px auto 10px"></canvas>
+      <div class="dmg-legend">
+        <span><i style="background:#2fb866"></i>Healthy</span>
+        <span><i style="background:#ffc24d"></i>Damaged</span>
+        <span><i style="background:#ff4d4d"></i>Critical</span>
+      </div>
+      <div class="dmg-note" id="dmgNote">Hit the barriers and this car takes damage. Total it and it's destroyed.</div>
+    </div>
+  </div>
+
+  <!-- game over: out of cars -->
+  <div class="err" id="loseScreen">
+    <div class="lt" style="color:#ff5a5a;font-size:30px">OUT OF CARS</div>
+    <div style="color:#9aa6d0;max-width:460px">Your last car is wrecked. Without a car you can't race — the season is over.</div>
+    <button class="btn primary" id="loseRestart" style="width:auto;padding:14px 30px;margin-top:8px">START A NEW TEAM</button>
+  </div>
+
   <div class="toast" id="toast"></div>
 </div>
 
@@ -2009,6 +2073,7 @@ class CarSim{
     this.wheelSpin=0;
     this.stuckT=0;this.bump=0;this.kerbLift=0;
     this.respawning=0;
+    this.damage=0; this.dmg={front:0,rear:0,left:0,right:0};
   }
   get speed(){return Math.hypot(this.vx,this.vz);}
   // forward/right unit vectors
@@ -2135,6 +2200,17 @@ class CarSim{
         this.vx-=(1+absorb)*into*nl.x*side;
         this.vz-=(1+absorb)*into*nl.z*side;
         if(ang>0.25){audioHit(ang* (this.speed/PHYS.topSpeed));camShake(ang*0.6);}
+        // ---- accumulate crash damage (squared so taps barely hurt, big hits cost) ----
+        const impact=ang*(this.speed/PHYS.topSpeed);
+        if(impact>0.18 && this.dmg){
+          const add=impact*impact*60;
+          this.damage=Math.min(100,this.damage+add);
+          // route to the panel that hit: compare wall normal to car's own axes
+          const f=this.fwd(), rx=f[1], rz=-f[0];
+          const fd=nl.x*side*f[0]+nl.z*side*f[1], rd=nl.x*side*rx+nl.z*side*rz;
+          let z = Math.abs(fd)>Math.abs(rd) ? (fd>0?'front':'rear') : (rd>0?'right':'left');
+          this.dmg[z]=Math.min(100,this.dmg[z]+add*1.4);
+        }
       }
     }
     this.x=nx;this.z=nz;
@@ -2634,7 +2710,7 @@ function enterGarage(){
 function setTab(name){
   currentTab=name;
   document.querySelectorAll('.sb-tab').forEach(b=>b.classList.toggle('active',b.dataset.tab===name));
-  ['garage','cars','calendar','dev','staff'].forEach(t=>{
+  ['garage','cars','calendar','dev','staff','challenges'].forEach(t=>{
     const el=$('#tab-'+t); if(el) el.classList.toggle('hidden',t!==name);
   });
   // turntable only on Garage; dev shows the car static in the work bay
@@ -2643,6 +2719,14 @@ function setTab(name){
     if(showcase.carHolder){showcase.carHolder.root.rotation.set(0,-0.55,0);} }
   if(name==='cars'){ buildCarsTab(); }
   if(name==='staff'){ buildStaffTab(); }
+  if(name==='challenges'){ buildChallengesTab(); }
+}
+function buildChallengesTab(){
+  ensureEconomy(GAME.team);
+  const owned=(GAME.team.owned||[GAME.team.car]).length;
+  $('#chOwned').textContent=owned;
+  $('#chLocked').textContent=Math.max(0,CAR_ORDER.length-owned);
+  $('#chParts').textContent=GAME.team.spares||0;
 }
 function buildStaffTab(){
   ensureEconomy(GAME.team);
@@ -3207,6 +3291,73 @@ function exitRace(){
   if(GAME.team){GAME.team.races=(GAME.team.races||0)+1;writeSave({team:GAME.team});}
   enterGarage();
 }
+
+/* ---- damage drawing + destruction ---- */
+function zoneCol(v){ return v<35?'#2fb866' : v<70?'#ffc24d' : '#ff4d4d'; }
+function drawCarDamage(cv, dmg, big){
+  const x=cv.getContext('2d'), W=cv.width, H=cv.height;
+  x.clearRect(0,0,W,H);
+  const cx=W/2, pad=big?34:6, bw=W-pad*2, top=pad, bh=H-pad*2;
+  // base body
+  x.save();
+  const r=big?22:7;
+  function panel(px,py,pw,ph,col){
+    x.fillStyle=col;x.beginPath();
+    if(x.roundRect)x.roundRect(px,py,pw,ph,big?8:3);else x.rect(px,py,pw,ph);
+    x.fill();
+  }
+  // overall body shell
+  x.fillStyle='#1b2030';x.beginPath();
+  if(x.roundRect)x.roundRect(pad,top,bw,bh,r);else x.rect(pad,top,bw,bh);
+  x.fill();
+  const z=dmg||{front:0,rear:0,left:0,right:0};
+  const m=big?7:2;
+  panel(cx-bw*0.32, top+m,        bw*0.64, bh*0.22, zoneCol(z.front)); // front
+  panel(cx-bw*0.32, top+bh*0.78-m,bw*0.64, bh*0.22, zoneCol(z.rear));  // rear
+  panel(pad+m,      top+bh*0.24,  bw*0.22, bh*0.52, zoneCol(z.left));   // left flank
+  panel(pad+bw*0.78-m,top+bh*0.24,bw*0.22, bh*0.52, zoneCol(z.right));  // right flank
+  // cabin
+  x.fillStyle='#0e1220';x.beginPath();
+  if(x.roundRect)x.roundRect(cx-bw*0.22,top+bh*0.30,bw*0.44,bh*0.40,big?10:3);else x.rect(cx-bw*0.22,top+bh*0.30,bw*0.44,bh*0.40);
+  x.fill();
+  if(big){
+    x.fillStyle='rgba(255,255,255,.85)';x.font='700 12px Arial';x.textAlign='center';
+    x.fillText('FRONT',cx,top-12);
+    x.fillText('REAR',cx,H-12);
+    x.save();x.translate(12,H/2);x.rotate(-Math.PI/2);x.fillText('LEFT',0,0);x.restore();
+    x.save();x.translate(W-12,H/2);x.rotate(Math.PI/2);x.fillText('RIGHT',0,0);x.restore();
+  }
+  x.restore();
+}
+function updateDamageHud(){
+  if(!sim)return;
+  $('#dmgPct').textContent=Math.round(sim.damage)+'%';
+  const mini=$('#dmgMini'); if(mini)drawCarDamage(mini,sim.dmg,false);
+  const box=$('#dmgBox');
+  if(box)box.style.borderColor = sim.damage>70?'rgba(255,80,80,.8)':sim.damage>35?'rgba(255,190,80,.6)':'rgba(130,150,255,.2)';
+}
+function destroyPlayerCar(){
+  const t=GAME.team; const wreck=t.car;
+  t.owned=(t.owned||[wreck]).filter(k=>k!==wreck);
+  writeSave({team:t});
+  if(!t.owned.length){
+    raceState='finished'; audioSilence();
+    flash('CAR DESTROYED');
+    setTimeout(()=>{ hideAllScreens(); $('#hud').classList.remove('show');
+      $('#loseScreen').classList.add('show'); STATE='lose'; },2000);
+  }else{
+    t.car=t.owned[0]; writeSave({team:t});
+    raceState='finished'; flash('CAR DESTROYED');
+    setTimeout(()=>{ toast('Switched to your '+ (CARS[t.car]?CARS[t.car].name:'spare car')); exitRace(); },2200);
+  }
+}
+$('#dmgBox').onclick=()=>{ if(!sim)return; drawCarDamage($('#dmgCanvas'),sim.dmg,true);
+  $('#dmgNote').textContent='Total damage: '+Math.round(sim.damage)+'%. Total the car and it is destroyed for the season.';
+  $('#dmgModal').classList.add('show'); };
+$('#dmgClose').onclick=()=>$('#dmgModal').classList.remove('show');
+$('#dmgModal').onclick=e=>{if(e.target.id==='dmgModal')e.currentTarget.classList.remove('show');};
+$('#loseRestart').onclick=()=>{clearSave();GAME.team=null;$('#loseScreen').classList.remove('show');
+  STATE='menu';showScreen('menu');refreshMenu();openWizard(false);};
 function flash(txt){const f=$('#raceflash');f.textContent=txt;f.style.opacity='1';
   f.style.transform='scale(1.2)';
   setTimeout(()=>{f.style.transition='all .4s';f.style.opacity='0';f.style.transform='scale(1)';
@@ -3432,6 +3583,8 @@ function raceUpdate(dt){
     dEl.className='ht-delta '+(d<0?'up':'down');
   } else { dEl.textContent='';dEl.className='ht-delta'; }
   drawMinimap();
+  updateDamageHud();
+  if(sim.damage>=100 && raceState==='running'){ destroyPlayerCar(); }
 
   // audio
   const slip=clamp(sim.slip + (sim.surf==='grass'?0.3:0),0,1);
