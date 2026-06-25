@@ -1847,7 +1847,7 @@ function buildTrack(scene, def){
   const ELEV=def.gimmick==='elevation';
   const pts=SRC.map((p,i)=>{
     let y=0;
-    if(ELEV){ const f=i/SRC.length; y=Math.sin(f*Math.PI*4)*4.2 + Math.sin(f*Math.PI*7+1.3)*2.1; }
+    if(ELEV){ const f=i/SRC.length; y=Math.sin(f*Math.PI*4)*7.5 + Math.sin(f*Math.PI*7+1.3)*3.5 + Math.sin(f*Math.PI*2)*4; }
     return new THREE.Vector3((p[0]-cx)*SCALE,y,(p[1]-cy)*SCALE);
   });
   const curve=new THREE.CatmullRomCurve3(pts,true,'catmullrom',0.5);
@@ -1898,17 +1898,17 @@ function buildTrack(scene, def){
     const c=C[i%N], nl=nrmL[i];
     const l=new THREE.Vector3().copy(c).addScaledVector(nl,HALF);
     const r=new THREE.Vector3().copy(c).addScaledVector(nl,-HALF);
-    pos.push(l.x,0.10,l.z, r.x,0.10,r.z);
+    pos.push(l.x,l.y+0.10,l.z, r.x,r.y+0.10,r.z);   // follow track elevation
     const v=i/ (N/55);
     uv.push(0,v, 1,v);
   }
   for(let i=0;i<N;i++){const a=i*2;idx.push(a,a+1,a+2, a+1,a+3,a+2);}
   rg.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));
   rg.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));
-  // road is flat -> force up-facing normals (correct lighting + never back-face culled)
-  const rn=new Float32Array(pos.length);for(let i=1;i<rn.length;i+=3)rn[i]=1;
-  rg.setAttribute('normal',new THREE.BufferAttribute(rn,3));
   rg.setIndex(idx);
+  if(ELEV){ rg.computeVertexNormals(); }     // elevated road needs real slope normals
+  else { const rn=new Float32Array(pos.length);for(let i=1;i<rn.length;i+=3)rn[i]=1;
+    rg.setAttribute('normal',new THREE.BufferAttribute(rn,3)); }  // flat: force up-facing
   const at=tex('asphalt',asphaltTex);at.repeat.set(2,1);
   const road=new THREE.Mesh(rg,new THREE.MeshStandardMaterial({map:at,roughness:.95,metalness:.0,
     side:THREE.DoubleSide,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-2}));
@@ -2042,6 +2042,30 @@ function buildTrack(scene, def){
     woffL[i]=(t> 1e-4)?Math.max(HALF+2.6,Math.min(WALL_OFF,0.70*R)):WALL_OFF;
     woffR[i]=(t<-1e-4)?Math.max(HALF+2.6,Math.min(WALL_OFF,0.70*R)):WALL_OFF;
   }
+  // ---- keep walls off OTHER (parallel) parts of the circuit: where the track
+  //   doubles back near itself, cap the wall offset to half the gap so it can
+  //   never cross onto the neighbouring straight ----
+  const sepWindow=70;   // samples that count as "the same stretch" of track (ignored)
+  for(let i=0;i<N;i++){
+    let sep=1e9;
+    for(let j=0;j<N;j+=3){
+      let dd=Math.abs(j-i); if(dd>N/2)dd=N-dd;
+      if(dd<=sepWindow) continue;
+      const dx=C[j].x-C[i].x, dz=C[j].z-C[i].z, d=Math.hypot(dx,dz);
+      if(d<sep) sep=d;
+    }
+    const maxSafe=Math.max(HALF+2.6, sep*0.5-1.5);   // sit no further than mid-gap
+    if(woffL[i]>maxSafe)woffL[i]=maxSafe;
+    if(woffR[i]>maxSafe)woffR[i]=maxSafe;
+  }
+  woffL[N]=woffL[0]; woffR[N]=woffR[0];
+  // smooth the offsets so the wall sweeps in/out gently (no popping on corners)
+  for(let pass=0;pass<3;pass++){
+    const aL=woffL.slice(), aR=woffR.slice();
+    for(let i=0;i<N;i++){ const p=(i-1+N)%N,n=(i+1)%N;
+      woffL[i]=(aL[p]+aL[i]*2+aL[n])/4; woffR[i]=(aR[p]+aR[i]*2+aR[n])/4; }
+    woffL[N]=woffL[0]; woffR[N]=woffR[0];
+  }
   // kart tracks are walled tight to the edge like a real indoor circuit
   if(KART){ for(let i=0;i<=N;i++){ woffL[i]=HALF+0.85; woffR[i]=HALF+0.85; } }
   // only ONE sponsor (sector 0) carries the circuit outline; the rest are plain brands
@@ -2083,8 +2107,10 @@ function buildTrack(scene, def){
         const gi=i0+k;
         // open the wall where the pitlane meets the track
         if(hasPit && sideSign===PIT_SIDE && gi>=PIT_A-4 && gi<PIT_B+4) continue;
-        // never draw a wall span that sits on/near the racing surface
-        if(globalNearestDist(P[k].x,P[k].z)<HALF+2 || globalNearestDist(P[k+1].x,P[k+1].z)<HALF+2) continue;
+        // never draw a wall span that sits on/near the racing surface (check both ends + midpoint)
+        const mxp=(P[k].x+P[k+1].x)/2, mzp=(P[k].z+P[k+1].z)/2;
+        if(globalNearestDist(P[k].x,P[k].z)<HALF+2.5 || globalNearestDist(P[k+1].x,P[k+1].z)<HALF+2.5
+           || globalNearestDist(mxp,mzp)<HALF+2.5) continue;
         const a=k*2;
         widx.push(a,a+1,a+2,a+1,a+3,a+2); cidx.push(a,a+1,a+2,a+1,a+3,a+2);}
       const wg=new THREE.BufferGeometry();
