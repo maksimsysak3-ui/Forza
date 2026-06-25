@@ -503,6 +503,8 @@
     color:#ff4d4d;opacity:0;transition:.15s}
   .turbo-tag.on{opacity:1}
   .g-num.boost{color:#ff4d4d!important}
+  /* karts have no turbo / fuel / damage system — hide those gauges */
+  #hud.kart .turbo-tag, #hud.kart .fuel, #hud.kart .dmgbox{display:none!important}
   /* damage box (race HUD) */
   .dmgbox{position:absolute;right:258px;bottom:30px;display:flex;flex-direction:column;align-items:center;
     gap:4px;padding:7px 9px 5px;background:rgba(10,13,22,.72);border:1px solid rgba(130,150,255,.2);
@@ -2363,8 +2365,8 @@ class CarSim{
 
     const T=this.tune||TUNE;     // per-car tune (player upgrades vs AI preset)
     // ---- steering input smoothing (50-80ms buffer) ----
-    this.steer=dampLerp(this.steer,input.steer,PHYS.steerSmooth,dt);
-    this.steerVis=dampLerp(this.steerVis,input.steer,10,dt);
+    this.steer=dampLerp(this.steer,input.steer,kartDrive?PHYS.steerSmooth*0.7:PHYS.steerSmooth,dt);
+    this.steerVis=dampLerp(this.steerVis,input.steer,kartDrive?6:10,dt);
     // speed-sensitive authority (scaled by development -> handling)
     const steerAuth=lerp(PHYS.steerLow,PHYS.steerHigh,sp01)*T.steer;
     // understeer bias: reduce authority slightly when going fast & not drifting
@@ -3573,7 +3575,7 @@ function spinWheelsVisual(car,spin,steer){
 const Input={throttle:0,brake:0,steer:0,handbrake:false};
 const keys={};
 addEventListener('keydown',e=>{keys[e.code]=true;
-  if(e.code==='KeyT' && STATE==='race' && sim && sim.fuel>0){ turboOn=!turboOn; }
+  if(e.code==='KeyT' && STATE==='race' && !kartDrive && sim && sim.fuel>0){ turboOn=!turboOn; }
   if(e.code==='KeyC' && STATE==='race'){ fpView=!fpView; }
   if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space'].includes(e.code))e.preventDefault();});
 addEventListener('keyup',e=>{keys[e.code]=false;});
@@ -3588,7 +3590,9 @@ function pollInput(dt){
   Input.brake=(dn||keys['Space'])?1:0;
   // left/right were inverted -> flip the mapping so Left turns left on screen
   let target=(lf?1:0)+(rt?-1:0);
-  Input.steer=target; // smoothing handled in sim
+  // karts: ramp the steer input smoothly (analog feel) so taps don't twitch the kart/camera
+  if(kartDrive) Input.steer=dampLerp(Input.steer,target,6.5,dt);
+  else Input.steer=target; // cars: instant; smoothing handled in sim
   Input.handbrake=!!(keys['ShiftLeft']||keys['ShiftRight']);
 }
 
@@ -3628,6 +3632,7 @@ function startRace(trackKey,mode,laps,numAIs,gridOrder){
   const raceTeam = forceCar ? Object.assign({},GAME.team,{car:forceCar}) : GAME.team;
   raceCar=getCar(raceTeam);race.scene.add(raceCar.root);
   fpView=!!raceCar.isKart;            // karts default to first-person; toggle with C
+  kartDrive=!!raceCar.isKart;
   document.getElementById('hud').classList.toggle('kart',!!raceCar.isKart);
   TUNE=computeTune(raceTeam);          // car feel depends on installed upgrades
   sim=new CarSim();sim.reset(8);sim.tune=TUNE;
@@ -4131,11 +4136,14 @@ function raceUpdate(dt){
   updateChaseCam(dt,sim._sp01||0);
 
   // ---- fuel burn (by distance so it's lap-count independent) + turbo drain ----
-  const burnPerM = (3.33/Math.max(1,TRACK._segLen?TRACK._segLen*N:1400));  // ~3.33 gal/lap
-  sim.fuel -= sim.speed*dt*burnPerM;
-  if(turboOn) sim.fuel -= 0.10*dt;              // ~1% of a 20-gal tank per 2s
-  if(sim.fuel<=0){ sim.fuel=0; turboOn=false; sim.boost=false; }   // out of fuel -> no power
-  sim.outOfFuel = sim.fuel<=0;
+  // karts have no fuel/turbo system, so skip it entirely (gauge is hidden)
+  if(!kartDrive){
+    const burnPerM = (3.33/Math.max(1,TRACK._segLen?TRACK._segLen*N:1400));  // ~3.33 gal/lap
+    sim.fuel -= sim.speed*dt*burnPerM;
+    if(turboOn) sim.fuel -= 0.10*dt;              // ~1% of a 20-gal tank per 2s
+    if(sim.fuel<=0){ sim.fuel=0; turboOn=false; sim.boost=false; }   // out of fuel -> no power
+    sim.outOfFuel = sim.fuel<=0;
+  } else { sim.fuel=fuelMax; sim.outOfFuel=false; turboOn=false; sim.boost=false; }
   const fuelFrac=clamp(sim.fuel/fuelMax,0,1);
   const fuelEl=$('#fuel'); $('#fuelFill').style.height=(fuelFrac*100)+'%';
   fuelEl.classList.toggle('low',fuelFrac<0.3&&fuelFrac>=0.12); fuelEl.classList.toggle('crit',fuelFrac<0.12);
@@ -4190,7 +4198,7 @@ function raceUpdate(dt){
 }
 let _lastN=99;
 
-let fpView=false;
+let fpView=false, kartDrive=false;
 function updateChaseCam(dt,sp01){
   const f=sim?sim.fwd():[0,1];
   const ey0=segY(sim.seg);
@@ -4198,11 +4206,11 @@ function updateChaseCam(dt,sp01){
     // first-person: eye just behind/above the steering wheel, looking down the road
     const eye=new THREE.Vector3(sim.x - f[0]*0.15, ey0+1.18, sim.z - f[1]*0.15);
     camPos.lerp(eye,1-Math.exp(-22*dt));
-    const lean=(sim.steerVis||0)*2.4;            // look slightly into the corner
+    const lean=(sim.steerVis||0)*1.5;            // gentle look into the corner (smoothed)
     const ahead=new THREE.Vector3(sim.x+f[0]*9 - f[1]*lean, ey0+0.78, sim.z+f[1]*9 + f[0]*lean);
-    camLook.lerp(ahead,1-Math.exp(-16*dt));
-    let shake=_shake; if(sp01>0.6)shake+=(sp01-0.6)*0.5; _shake=Math.max(0,_shake-dt*3);
-    const sy=(Math.random()-.5)*shake*0.35;
+    camLook.lerp(ahead,1-Math.exp(-9*dt));        // slower follow -> no twitch
+    let shake=_shake; if(sp01>0.8)shake+=(sp01-0.8)*0.3; _shake=Math.max(0,_shake-dt*3);
+    const sy=(Math.random()-.5)*shake*0.2;
     race.cam.position.copy(camPos).add(new THREE.Vector3(0,sy,0));
     race.cam.lookAt(camLook);
     race.cam.fov=lerp(74,86,sp01); race.cam.updateProjectionMatrix();
