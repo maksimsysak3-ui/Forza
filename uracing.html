@@ -2507,12 +2507,14 @@ class CarSim{
     const effTop=PHYS.topSpeed*T.top*boost;
     const brakeDec=PHYS.brakeDecel*T.brake;
     const accelRate=effTop/PHYS.accelTime*T.accel;
-    if(input.throttle>0.01){
+    // brake takes priority over throttle, so you can brake (Space/Down) while still holding W
+    if(input.brake>0.01){
+      if(vf>0.2){vf-=brakeDec*input.brake*dt;if(vf<0)vf=0;}
+      else if(input.throttle<0.01){vf-=PHYS.reverseSpeed*0.5*dt; if(vf<-PHYS.reverseSpeed)vf=-PHYS.reverseSpeed;}
+      else{ if(vf<0)vf=0; }   // throttle+brake held at a stop -> just hold still, no reverse
+    }else if(input.throttle>0.01){
       if(vf<0) vf+=brakeDec*dt; // braking out of reverse
       vf+=accelRate*input.throttle*dt*(1-0.35*sp01); // curve tapers near top
-    }else if(input.brake>0.01){
-      if(vf>0.2){vf-=brakeDec*input.brake*dt;if(vf<0)vf=0;}
-      else{vf-=PHYS.reverseSpeed*0.5*dt; if(vf<-PHYS.reverseSpeed)vf=-PHYS.reverseSpeed;}
     }
     // drag
     vf-=Math.sign(vf)*PHYS.rollDrag*dt;
@@ -2944,7 +2946,10 @@ function menuBgURI(){
 }
 function refreshMenu(){
   const s=loadSave();
-  $('#menubg').style.backgroundImage=`url(${menuBgURI()})`;
+  // restore the embedded hero image as the first-menu background (its own URACING branding,
+  // so hide the duplicate wordmark and keep just the tagline + buttons)
+  $('#menubg').style.backgroundImage=`url(${LOGO_URI})`;
+  const brand=$('.menu-brand'); if(brand) brand.style.display='none';
   if(s&&s.team){
     GAME.team=s.team;
     $('#saveHint').textContent=`Welcome back, ${s.team.name} — save loaded`;
@@ -3312,8 +3317,9 @@ function buildCalendar(){
   RACES.forEach(r=>{
     const card=document.createElement('div');
     card.className='race-card'+(r.play?'':' locked');
-    const hasArt=r.art && r.art.indexOf('data:')===0;   // ignore the unfilled placeholder
-    const art=hasArt?`style="background-image:url(${r.art})"`:'style="background:linear-gradient(160deg,#24406a,#0e1626)"';
+    const cardImg = (r.track && typeof TRACK_IMG!=='undefined' && TRACK_IMG[r.track]) || r.art;
+    const hasArt=cardImg && cardImg.indexOf('data:')===0;   // ignore the unfilled placeholder
+    const art=hasArt?`style="background-image:url(${cardImg})"`:'style="background:linear-gradient(160deg,#24406a,#0e1626)"';
     const outline=r.pts?trackOutlineSVG(r.pts):'';
     card.innerHTML=`
       <div class="rc-inner">
