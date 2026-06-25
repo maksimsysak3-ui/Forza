@@ -200,6 +200,18 @@
     mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M9 11a3 3 0 100-6 3 3 0 000 6zM3 20c0-3 3-5 6-5s6 2 6 5M17 14c2 0 4 1.5 4 4' fill='none' stroke='black' stroke-width='2'/%3E%3C/svg%3E")}
   .sbi-t{-webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 2l3 6 6 1-4.5 4.5L18 20l-6-3-6 3 1.5-6.5L3 9l6-1z' fill='none' stroke='black' stroke-width='2'/%3E%3C/svg%3E");
     mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 2l3 6 6 1-4.5 4.5L18 20l-6-3-6 3 1.5-6.5L3 9l6-1z' fill='none' stroke='black' stroke-width='2'/%3E%3C/svg%3E")}
+  .sbi-p{-webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M6 9V4h12v5a6 6 0 01-12 0zM4 6h2M18 6h2M9 20h6M12 15v5' fill='none' stroke='black' stroke-width='2'/%3E%3C/svg%3E");
+    mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M6 9V4h12v5a6 6 0 01-12 0zM4 6h2M18 6h2M9 20h6M12 15v5' fill='none' stroke='black' stroke-width='2'/%3E%3C/svg%3E")}
+  /* standings table */
+  .stand-list{display:flex;flex-direction:column;gap:8px;max-width:620px}
+  .stand-row{display:flex;align-items:center;gap:14px;padding:13px 18px;border-radius:12px;
+    background:linear-gradient(180deg,rgba(20,26,44,.7),rgba(11,15,26,.7));border:1px solid rgba(120,140,255,.14)}
+  .stand-row.you{border-color:rgba(255,150,90,.5);background:rgba(60,40,20,.35)}
+  .stand-pos{width:28px;font-weight:900;font-size:18px;color:#9aa6d0;text-align:center}
+  .stand-row:first-child .stand-pos{color:#ffd24a}
+  .stand-nm{flex:1;font-weight:700;font-size:15px}
+  .stand-w{font-weight:900;font-size:18px;color:#fff}
+  .stand-w span{font-size:11px;color:#8a96c2;letter-spacing:.1em;margin-left:5px}
   .ch-unlock{margin-bottom:16px;background:linear-gradient(180deg,rgba(20,25,42,.6),rgba(11,15,26,.6));
     border:1px solid rgba(120,140,255,.15);border-radius:12px;padding:12px 16px}
   .ch-unlock-head{display:flex;justify-content:space-between;font-size:11px;letter-spacing:.14em;
@@ -269,12 +281,36 @@
   .sb-actions{margin-top:auto;display:flex;flex-direction:column;gap:10px}
   .sb-foot{font-size:9px;letter-spacing:.32em;color:#46506e;text-align:center;text-transform:uppercase}
 
-  .tabview{position:absolute;left:266px;right:0;top:0;bottom:0;z-index:3}
+  /* ---- top bar + tile-grid navigation (sidebar removed) ---- */
+  .topbar{position:absolute;left:0;right:0;top:0;height:62px;z-index:6;display:flex;align-items:center;
+    justify-content:space-between;padding:0 20px;
+    background:linear-gradient(180deg,rgba(9,12,20,.96),rgba(9,12,20,.55));
+    border-bottom:1px solid rgba(120,140,255,.14)}
+  .tb-brand{display:flex;align-items:center;gap:12px}
+  .tb-actions{display:flex;gap:10px}
+  .tab-back{position:absolute;left:18px;top:74px;z-index:6;display:none;cursor:pointer;
+    background:rgba(16,20,34,.85);border:1px solid rgba(120,140,255,.22);color:#cfd6ff;
+    font-weight:800;letter-spacing:.08em;padding:9px 16px;border-radius:10px}
+  .tab-back:hover{border-color:rgba(150,170,255,.5)}
+  #garage.show-tab .tab-back{display:block}
+  .tabview{position:absolute;left:0;right:0;top:62px;bottom:0;z-index:3}
   .tabview.hidden{display:none !important}
-  .panelview{overflow:auto;background:radial-gradient(120% 120% at 70% 10%,rgba(18,24,42,.985),rgba(6,8,14,.997))}
-  .hub-stats{position:absolute;top:24px;right:34px;display:flex;gap:26px;font-size:12px;color:#9aa6d0;text-align:right}
+  .panelview{overflow:auto;padding-top:18px;background:radial-gradient(120% 120% at 70% 10%,rgba(18,24,42,.985),rgba(6,8,14,.997))}
+  /* big rectangle nav tiles on the garage hub */
+  .hub-tiles{position:absolute;left:50%;bottom:30px;transform:translateX(-50%);z-index:4;
+    display:grid;grid-template-columns:repeat(3,minmax(180px,1fr));gap:14px;width:min(880px,94vw)}
+  .hub-tile{cursor:pointer;text-align:left;padding:16px 18px;border-radius:15px;
+    background:linear-gradient(180deg,rgba(20,26,44,.86),rgba(11,15,26,.9));
+    border:1px solid rgba(120,140,255,.18);border-left:3px solid #7da0ff;
+    transition:.16s;backdrop-filter:blur(6px);position:relative;overflow:hidden}
+  .hub-tile:hover{transform:translateY(-3px);border-left-color:#ff7a3c;box-shadow:0 14px 34px rgba(0,0,0,.5)}
+  .hub-tile i{display:block;width:24px;height:24px;background:#aab6e0;margin-bottom:9px;
+    -webkit-mask-size:contain;mask-size:contain;-webkit-mask-repeat:no-repeat;mask-repeat:no-repeat}
+  .hub-tile b{font-size:16px;font-weight:800;display:block}
+  .hub-tile span{font-size:11.5px;color:#8a96c2;display:block;margin-top:2px}
+  .hub-stats{position:absolute;top:80px;right:34px;display:flex;gap:26px;font-size:12px;color:#9aa6d0;text-align:right;z-index:4}
   .hub-stats b{display:block;color:#fff;font-size:20px;font-weight:800}
-  .car-name{position:absolute;bottom:46px;left:50%;transform:translateX(-50%);text-align:center}
+  .car-name{position:absolute;bottom:178px;left:50%;transform:translateX(-50%);text-align:center;z-index:4}
   .car-name .cn{font-size:30px;font-weight:900;letter-spacing:.06em}
   .car-name .cc{font-size:12px;letter-spacing:.3em;color:#9aa6d0;text-transform:uppercase}
 
@@ -793,29 +829,20 @@
 
   <!-- Garage / hub -->
   <div id="garage" class="screen">
-    <aside class="sidebar">
-      <div class="sb-brand">
-        <div class="crest" id="hubCrest">A</div>
+    <!-- top bar -->
+    <div class="topbar">
+      <div class="tb-brand"><div class="crest" id="hubCrest">A</div>
         <div class="sb-team"><div class="tname" id="hubName">Apex Racing</div>
-          <div class="tsub">Team HQ</div></div>
+          <div class="tsub">Team HQ</div></div></div>
+      <div class="tb-actions">
+        <button class="btn ghost" id="btnGarageMenu" style="width:auto;padding:11px 18px">MAIN MENU</button>
+        <button class="btn ghost" id="btnEditLivery" style="width:auto;padding:11px 18px">EDIT LIVERY</button>
+        <button class="btn primary" id="btnRace" style="width:auto;padding:11px 30px">RACE</button>
       </div>
-      <nav class="sb-nav">
-        <button class="sb-tab active" data-tab="garage"><i class="sbi sbi-g"></i><span>Garage</span></button>
-        <button class="sb-tab" data-tab="cars"><i class="sbi sbi-car"></i><span>Cars &amp; Livery</span></button>
-        <button class="sb-tab" data-tab="calendar"><i class="sbi sbi-c"></i><span>Calendar</span></button>
-        <button class="sb-tab" data-tab="dev"><i class="sbi sbi-d"></i><span>Development</span></button>
-        <button class="sb-tab" data-tab="staff"><i class="sbi sbi-s"></i><span>Staff</span></button>
-        <button class="sb-tab" data-tab="challenges"><i class="sbi sbi-t"></i><span>Challenges</span></button>
-      </nav>
-      <div class="sb-actions">
-        <button class="btn primary" id="btnRace">RACE</button>
-        <button class="btn ghost" id="btnEditLivery">EDIT LIVERY</button>
-        <button class="btn ghost" id="btnGarageMenu">MAIN MENU</button>
-      </div>
-      <div class="sb-foot">URACING · UNLIMITED</div>
-    </aside>
+    </div>
+    <button class="tab-back" id="tabBack">‹ GARAGE</button>
 
-    <!-- GARAGE tab (3D car renders behind) -->
+    <!-- GARAGE hub (3D car renders behind) + big nav tiles -->
     <div class="tabview" id="tab-garage">
       <div class="hub-stats">
         <div><b id="statCars">1</b>CARS</div>
@@ -825,6 +852,14 @@
       <div class="car-name">
         <div class="cn" id="hubCarName">488 LW</div>
         <div class="cc">Liberty Walk · GT</div>
+      </div>
+      <div class="hub-tiles" id="hubTiles">
+        <button class="hub-tile" data-tab="cars"><i class="sbi sbi-car"></i><b>Cars &amp; Livery</b><span>Pick your car · set the livery</span></button>
+        <button class="hub-tile" data-tab="calendar"><i class="sbi sbi-c"></i><b>Calendar</b><span>Race the season</span></button>
+        <button class="hub-tile" data-tab="dev"><i class="sbi sbi-d"></i><b>Development</b><span>Research &amp; install upgrades</span></button>
+        <button class="hub-tile" data-tab="staff"><i class="sbi sbi-s"></i><b>Staff</b><span>Your crew</span></button>
+        <button class="hub-tile" data-tab="challenges"><i class="sbi sbi-t"></i><b>Challenges</b><span>Kart Mania · Delivery Dash</span></button>
+        <button class="hub-tile" data-tab="standings"><i class="sbi sbi-p"></i><b>Standings</b><span>Championship wins</span></button>
       </div>
     </div>
 
@@ -886,6 +921,13 @@
         <div class="tab-sub">The crew behind the car — six key roles drive your performance</div></div>
       <div class="staff-summary" id="staffSummary"></div>
       <div class="staff-grid" id="staffGrid"></div>
+    </div>
+
+    <!-- STANDINGS tab -->
+    <div class="tabview panelview hidden" id="tab-standings">
+      <div class="tab-head"><h2>Championship Standings</h2>
+        <div class="tab-sub">Win races to top the table — points are scored for wins only</div></div>
+      <div class="stand-list" id="standList"></div>
     </div>
   </div>
 
@@ -3629,10 +3671,10 @@ function enterGarage(){
 /* ----------  Garage tabs (Garage / Calendar / Development)  ---------- */
 function setTab(name){
   currentTab=name;
-  document.querySelectorAll('.sb-tab').forEach(b=>b.classList.toggle('active',b.dataset.tab===name));
-  ['garage','cars','calendar','dev','staff','challenges'].forEach(t=>{
+  ['garage','cars','calendar','dev','staff','challenges','standings'].forEach(t=>{
     const el=$('#tab-'+t); if(el) el.classList.toggle('hidden',t!==name);
   });
+  document.getElementById('garage').classList.toggle('show-tab', name!=='garage');
   // turntable only on Garage; dev shows the car static in the work bay
   garageTabActive=(name==='garage');
   if(name==='dev'){ buildDevTab();
@@ -3640,6 +3682,19 @@ function setTab(name){
   if(name==='cars'){ buildCarsTab(); }
   if(name==='staff'){ buildStaffTab(); }
   if(name==='challenges'){ buildChallengesTab(); }
+  if(name==='standings'){ buildStandingsTab(); }
+}
+function buildStandingsTab(){
+  ensureEconomy(GAME.team);
+  const st=GAME.team.standings||{};
+  const rows=[{name:'You',you:true,w:st['You']||0}].concat(RIVALS.map(r=>({name:r,w:st[r]||0})));
+  rows.sort((a,b)=>b.w-a.w);
+  const host=$('#standList'); host.innerHTML='';
+  if(!GAME.team.champRaces){ const e=document.createElement('div'); e.className='ch-group-h';
+    e.textContent='No championship races yet — run a Quick Race or Race Weekend against AIs to score wins.'; host.appendChild(e); }
+  rows.forEach((r,i)=>{ const d=document.createElement('div'); d.className='stand-row'+(r.you?' you':'');
+    d.innerHTML=`<div class="stand-pos">${i+1}</div><div class="stand-nm">${r.name}${r.you?' (You)':''}</div>
+      <div class="stand-w">${r.w}<span>WINS</span></div>`; host.appendChild(d); });
 }
 function buildChallengesTab(){
   ensureEconomy(GAME.team);
@@ -3747,7 +3802,8 @@ function buildCarsTab(){
   }
 }
 let garageTabActive=true, currentTab='garage';
-document.querySelectorAll('.sb-tab').forEach(b=>b.onclick=()=>setTab(b.dataset.tab));
+document.querySelectorAll('.hub-tile').forEach(b=>b.onclick=()=>setTab(b.dataset.tab));
+$('#tabBack').onclick=()=>setTab('garage');
 
 /* build an SVG path string for a track outline from screen-space points */
 function trackOutlineSVG(pts){
@@ -4269,6 +4325,18 @@ let forceCar=null, activeChallenge=null;
 const AI_TUNE={top:1.08,accel:1.16,brake:1.06,grip:1.08,steer:1.02};   // strong rival
 const AI_COLORS=[['#e8e8ee','#ff3b3b','2','R'],['#ffd24a','#101216','5','K'],
   ['#1aa7ff','#ffffff','9','V'],['#1ec96b','#06301c','3','M'],['#9b51e0','#ffffff','11','X']];
+const RIVALS=['Vortex GP','Blitz Racing','Nova Motorsport','Crimson Squadron','Atlas Racing'];
+function awardChampionship(){
+  prog(sim); ais.forEach(a=>prog(a.sim));
+  const field=[{name:'You',you:true,p:sim._prog}]
+    .concat(ais.map((a,n)=>({name:RIVALS[n%RIVALS.length],p:a.sim._prog})));
+  field.sort((x,y)=>y.p-x.p);
+  const st=GAME.team.standings=GAME.team.standings||{};
+  if(st['You']==null)st['You']=0; RIVALS.forEach(r=>{if(st[r]==null)st[r]=0;});
+  st[field[0].name]=(st[field[0].name]||0)+1;            // a win for whoever led at the flag
+  GAME.team.champRaces=(GAME.team.champRaces||0)+1;
+  writeSave({team:GAME.team});
+}
 // place car for grid slot k (0 = player, front-left), rows of two going backwards
 function gridSlot(k){
   const N=TRACK.N, row=Math.floor(k/2), colSign=(k%2===0)?-1:1;
@@ -4826,7 +4894,7 @@ function raceUpdate(dt){
         }
         const fin=ais.length?(' · P'+(sim._racePos||1)+'/'+(sim._raceTotal||1)):'';
         flash('FINISH'+fin);raceState='finished';
-        if(ais.length)toast(sim._racePos===1?'Victory! You won the race':'Finished P'+sim._racePos+' of '+sim._raceTotal);
+        if(ais.length){ awardChampionship(); toast(sim._racePos===1?'Victory! You won the race':'Finished P'+sim._racePos+' of '+sim._raceTotal); }
         setTimeout(()=>exitRace(),2800);
       }
       else flash('LAP '+lap);
