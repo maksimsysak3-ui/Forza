@@ -996,6 +996,30 @@ const RA_PTS=[
  [943,508],[939,548],[947,586],[962,627],[968,664],[969,704],[956,726],[937,743],[855,747],[748,746],
  [654,747],[584,745]];
 
+// ---- indoor go-kart circuits ----
+const KART1_PTS=[
+ [720,519],[549,479],[338,431],[228,404],[197,378],[218,339],[208,309],[219,286],[255,264],[290,265],
+ [323,272],[357,280],[372,294],[370,313],[350,329],[326,345],[308,361],[314,374],[335,388],[357,388],
+ [390,378],[414,380],[436,397],[468,418],[514,429],[559,432],[603,432],[686,428],[734,420],[768,420],
+ [800,426],[820,438],[834,466],[877,469],[897,457],[901,427],[887,382],[884,336],[906,252],[916,195],
+ [901,160],[900,132],[915,118],[949,110],[979,112],[1006,125],[1017,148],[1010,234],[1003,343],[996,432],
+ [977,485],[961,517],[932,538],[888,540],[824,531]];
+const KART2_PTS=[
+ [645,564],[427,567],[314,568],[253,559],[192,524],[152,477],[113,410],[90,356],[93,297],[125,253],
+ [171,223],[224,212],[290,204],[379,207],[516,208],[645,209],[706,206],[750,210],[833,211],[931,209],
+ [997,211],[1030,225],[1050,250],[1062,277],[1050,323],[1027,341],[989,352],[910,331],[848,301],[778,289],
+ [702,288],[610,288],[524,288],[429,283],[356,287],[324,307],[297,337],[282,365],[281,416],[300,443],
+ [329,465],[385,458],[428,418],[482,377],[536,356],[594,357],[633,375],[648,424],[693,447],[742,464],
+ [798,469],[845,461],[882,446],[924,436],[963,444],[984,469],[1000,505],[987,535],[956,564],[881,566],
+ [791,564],[721,564]];
+const KART3_PTS=[
+ [536,629],[430,630],[374,628],[339,606],[307,569],[297,542],[337,492],[370,456],[388,429],[386,391],
+ [382,272],[386,202],[400,169],[439,166],[487,162],[523,172],[526,204],[531,287],[529,390],[529,433],
+ [537,449],[584,463],[630,463],[673,460],[694,439],[693,417],[678,398],[639,366],[616,338],[617,312],
+ [648,280],[723,201],[759,164],[783,152],[810,169],[854,210],[902,260],[930,284],[933,312],[930,410],
+ [931,444],[951,456],[986,466],[1008,497],[1004,546],[965,564],[868,559],[808,561],[752,584],[684,614],
+ [643,633],[585,630]];
+
 const TRACKS = {
   nurburgring:{ name:'Nürburgring', country:'Germany', color:'#d11f2a',
     pts:TRACK_PTS, scale:1.75, env:'alpine',
@@ -1029,6 +1053,16 @@ const TRACKS = {
     // classic American wood-frame bleachers, blue roof, stars-and-stripes fascia
     stand:{ roof:'#2a3f7a', frame:'#9a7a4e', tiers:5, W:32, roofType:'bleacher',
             banner:['#b22234','#ffffff','#3c3b6e'], crowd:['#c4452f','#dfe3ea','#3a6cc4','#e6c84a','#cfd4dd'] } },
+  // ---- indoor go-kart circuits: tight, tire-walled, no sponsors ----
+  kart1:{ name:'Apex Indoor Arena', country:'Karting', color:'#ff7a00', kart:true,
+    pts:KART1_PTS, scale:1.05, env:'indoor', half:4.6, gimmick:'obstacles',
+    blurb:'A flowing club circuit littered with cones — keep it clean.' },
+  kart2:{ name:'The Needle', country:'Karting', color:'#1aa7ff', kart:true,
+    pts:KART2_PTS, scale:1.15, env:'indoor', half:3.0, gimmick:'thin',
+    blurb:'Brutally narrow ribbon of tarmac — millimetre precision.' },
+  kart3:{ name:'Vertigo Dome', country:'Karting', color:'#9b51e0', kart:true,
+    pts:KART3_PTS, scale:1.1, env:'indoor', half:4.4, gimmick:'elevation',
+    blurb:'Wild banked climbs and plunging drops under the dome.' },
 };
 </script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -1385,16 +1419,24 @@ function buildTrack(scene, def){
   def=def||TRACKS.nurburgring;
   const SRC=def.pts;
   const SCALE=def.scale||1.75;                 // bigger track (scaled up)
+  const KART=!!def.kart;
   let xs=SRC.map(p=>p[0]),ys=SRC.map(p=>p[1]);
   const cx=(Math.min(...xs)+Math.max(...xs))/2, cy=(Math.min(...ys)+Math.max(...ys))/2;
-  const pts=SRC.map(p=>new THREE.Vector3((p[0]-cx)*SCALE,0,(p[1]-cy)*SCALE));
+  // elevation gimmick: undulating banked climbs/drops (visual; physics stays planar)
+  const ELEV=def.gimmick==='elevation';
+  const pts=SRC.map((p,i)=>{
+    let y=0;
+    if(ELEV){ const f=i/SRC.length; y=Math.sin(f*Math.PI*4)*4.2 + Math.sin(f*Math.PI*7+1.3)*2.1; }
+    return new THREE.Vector3((p[0]-cx)*SCALE,y,(p[1]-cy)*SCALE);
+  });
   const curve=new THREE.CatmullRomCurve3(pts,true,'catmullrom',0.5);
   const N=900;
   const C=curve.getSpacedPoints(N);           // centerline samples (closed -> C[N]==C[0])
-  const HALF=8.3;                              // road half-width (~16.6 m road, wider)
-  const KERB_W=2.7;                            // bold, clearly visible kerbs
+  const HALF=def.half||8.3;                    // road half-width (kart tracks are narrow)
+  const KERB_W=KART?1.3:2.7;                   // bold, clearly visible kerbs
   const len=curve.getLength();
   const SPONSORS=def.sponsors, outlinePts=SRC;
+  TRACK.kart=KART; TRACK.elev=ELEV; TRACK._obstacles=null; TRACK._stands=null;
 
   // tangents & left normals
   const tan=[],nrmL=[];
@@ -1579,8 +1621,10 @@ function buildTrack(scene, def){
     woffL[i]=(t> 1e-4)?Math.max(HALF+2.6,Math.min(WALL_OFF,0.70*R)):WALL_OFF;
     woffR[i]=(t<-1e-4)?Math.max(HALF+2.6,Math.min(WALL_OFF,0.70*R)):WALL_OFF;
   }
+  // kart tracks are walled tight to the edge like a real indoor circuit
+  if(KART){ for(let i=0;i<=N;i++){ woffL[i]=HALF+0.85; woffR[i]=HALF+0.85; } }
   // only ONE sponsor (sector 0) carries the circuit outline; the rest are plain brands
-  const sponMats=SPONSORS.map((s,idx)=>new THREE.MeshStandardMaterial({
+  const sponMats=(SPONSORS||[]).map((s,idx)=>new THREE.MeshStandardMaterial({
     map:sponsorTex(s, idx===0?outlinePts:null),metalness:.15,roughness:.78,side:THREE.DoubleSide}));
   const capMat=new THREE.MeshStandardMaterial({color:0xced3da,metalness:.2,roughness:.6,side:THREE.DoubleSide});
   function offPt(i,sideSign){
@@ -1634,8 +1678,13 @@ function buildTrack(scene, def){
       scene.add(new THREE.Mesh(cg,capMat));
     }
   }
-  buildBarrier(1);buildBarrier(-1);
-  if(hasPit) buildPits(scene,C,nrmL,tan,N,HALF,PIT_A,PIT_B,PIT_SIDE,def);
+  if(KART){
+    buildKartBarriers(scene,C,nrmL,N,HALF);
+    if(def.gimmick==='obstacles') buildKartObstacles(scene,C,nrmL,tan,N,HALF);
+  }else{
+    buildBarrier(1);buildBarrier(-1);
+    if(hasPit) buildPits(scene,C,nrmL,tan,N,HALF,PIT_A,PIT_B,PIT_SIDE,def);
+  }
 
   // expose for physics
   TRACK.C=C;TRACK.tan=tan;TRACK.nrmL=nrmL;TRACK.N=N;TRACK.HALF=HALF;
@@ -1643,8 +1692,45 @@ function buildTrack(scene, def){
   TRACK.woffL=woffL;TRACK.woffR=woffR;
   TRACK.SCALE=SCALE;TRACK.startTangent=Math.atan2(tan[0].x,tan[0].z);TRACK.start=C[0];
   TRACK.curve=curve;
-  buildGrandstands(scene,C,nrmL,N,HALF,def);
+  if(!KART) buildGrandstands(scene,C,nrmL,N,HALF,def);
   return TRACK;
+}
+/* ---- kart tire-wall barriers hugging both edges (follow elevation) + obstacle cones ---- */
+function buildKartBarriers(scene,C,nrmL,N,HALF){
+  const off=HALF+0.55, R=0.34, step=3;            // tire spacing along the edge
+  const redMat=new THREE.MeshStandardMaterial({color:0x1a1a1e,roughness:.9});
+  const inst=new THREE.InstancedMesh(new THREE.CylinderGeometry(R,R,0.5,10),redMat,Math.ceil(N/step)*2+8);
+  const stripeMat=new THREE.MeshStandardMaterial({color:0xff3b3b,roughness:.8});
+  const stripes=new THREE.InstancedMesh(new THREE.CylinderGeometry(R*1.04,R*1.04,0.16,10),stripeMat,Math.ceil(N/step)*2+8);
+  const m=new THREE.Object3D(); let n=0;
+  for(let side=-1;side<=1;side+=2){
+    for(let i=0;i<N;i+=step){
+      const c=C[i],nl=nrmL[i];
+      m.position.set(c.x+nl.x*side*off, (c.y||0)+0.25, c.z+nl.z*side*off);
+      m.rotation.set(0,0,0); m.updateMatrix();
+      inst.setMatrixAt(n,m.matrix);
+      m.position.y=(c.y||0)+0.42; m.updateMatrix(); stripes.setMatrixAt(n,m.matrix);
+      n++;
+    }
+  }
+  inst.count=n; stripes.count=n; inst.castShadow=true; inst.receiveShadow=true;
+  scene.add(inst); scene.add(stripes);
+}
+function buildKartObstacles(scene,C,nrmL,tan,N,HALF){
+  TRACK._obstacles=[];
+  const coneG=new THREE.ConeGeometry(0.5,1.0,12);
+  const coneM=new THREE.MeshStandardMaterial({color:0xff7a00,roughness:.7,emissive:0x7a2e00,emissiveIntensity:.3});
+  const bandM=new THREE.MeshStandardMaterial({color:0xffffff,roughness:.7});
+  // scatter cones near the racing line at intervals, offset to one side
+  for(let i=40;i<N-20;i+=Math.floor(N/14)){
+    const side=(i%3===0)?1:(i%3===1?-1:0);
+    const off=side*HALF*0.45 + (Math.random()-0.5)*1.2;
+    const c=C[i],nl=nrmL[i];
+    const x=c.x+nl.x*off, z=c.z+nl.z*off, y=(c.y||0);
+    const cone=new THREE.Mesh(coneG,coneM); cone.position.set(x,y+0.5,z); cone.castShadow=true; scene.add(cone);
+    const band=new THREE.Mesh(new THREE.CylinderGeometry(0.36,0.42,0.18,12),bandM); band.position.set(x,y+0.55,z); scene.add(band);
+    TRACK._obstacles.push({x,z,mesh:cone,band,hit:false});
+  }
 }
 
 /* ----- nearest-sample lookup for physics (windowed) ----- */
@@ -1659,6 +1745,8 @@ function trackSample(px,pz,hint){
   const lateral=(px-C[best].x)*nl.x+(pz-C[best].z)*nl.z;
   return {i:best,lateral,dist:Math.sqrt(bd)};
 }
+/* ----- elevation at a sample (kart 'elevation' tracks; 0 for flat tracks) ----- */
+function segY(seg){ const C=TRACK.C; if(!C)return 0; const c=C[((seg%TRACK.N)+TRACK.N)%TRACK.N]; return c?(c.y||0):0; }
 /* ----- global nearest distance to centerline (for object placement) ----- */
 function globalNearestDist(px,pz){
   const C=TRACK.C,N=TRACK.N;let bd=1e9;
@@ -1911,7 +1999,59 @@ function buildGrandstands(scene,C,nrmL,N,HALF,def){
   }
 }
 
+/* indoor karting hall: concrete floor, perimeter walls, roof trusses + light strips */
+function buildIndoorEnvironment(scene){
+  const C=TRACK.C,N=TRACK.N;
+  let mnx=1e9,mxx=-1e9,mnz=1e9,mxz=-1e9,mxy=0;
+  for(let i=0;i<N;i++){mnx=Math.min(mnx,C[i].x);mxx=Math.max(mxx,C[i].x);
+    mnz=Math.min(mnz,C[i].z);mxz=Math.max(mxz,C[i].z);mxy=Math.max(mxy,C[i].y||0);}
+  const cx=(mnx+mxx)/2, cz=(mnz+mxz)/2, W=(mxx-mnx)+70, D=(mxz-mnz)+70;
+  const wallH=14, roofY=wallH;
+  scene.background=new THREE.Color(0x0c0e14);
+  scene.fog=new THREE.Fog(0x0c0e14, 260, 720);
+  // painted concrete floor
+  const floorTex=tex('kfloor',()=>{const s=512,c=cvs(s,s),x=c.getContext('2d');
+    x.fillStyle='#2c2f36';x.fillRect(0,0,s,s);
+    for(let i=0;i<2200;i++){x.fillStyle='rgba(255,255,255,'+(Math.random()*.025)+')';x.fillRect(Math.random()*s,Math.random()*s,2,2);}
+    x.strokeStyle='rgba(0,0,0,.25)';x.lineWidth=2;for(let g=0;g<=s;g+=64){x.beginPath();x.moveTo(g,0);x.lineTo(g,s);x.moveTo(0,g);x.lineTo(s,g);x.stroke();}
+    const t=new THREE.CanvasTexture(c);t.wrapS=t.wrapT=THREE.RepeatWrapping;t.repeat.set(W/14,D/14);return t;});
+  const floor=new THREE.Mesh(new THREE.PlaneGeometry(W,D),
+    new THREE.MeshStandardMaterial({map:floorTex,roughness:.9,metalness:.05}));
+  floor.rotation.x=-Math.PI/2; floor.position.set(cx,-0.15,cz); floor.receiveShadow=true; floor.renderOrder=0; scene.add(floor);
+  // perimeter walls: four inward-facing panels (unambiguous normals) + accent rail
+  const wallMat=new THREE.MeshStandardMaterial({color:0x161a24,roughness:.92,metalness:0,side:THREE.DoubleSide});
+  const railMat=new THREE.MeshStandardMaterial({color:0x222632,roughness:.7,side:THREE.DoubleSide});
+  function wallPanel(px,pz,w,rotY){
+    const m=new THREE.Mesh(new THREE.PlaneGeometry(w,wallH),wallMat);
+    m.position.set(px,wallH/2-0.15,pz); m.rotation.y=rotY; m.receiveShadow=true; scene.add(m);
+    const r=new THREE.Mesh(new THREE.PlaneGeometry(w,0.6),railMat);
+    r.position.set(px,3.2,pz); r.rotation.y=rotY; scene.add(r);
+  }
+  wallPanel(cx, mnz-35, W, 0);          // back
+  wallPanel(cx, mxz+35, W, Math.PI);    // front
+  wallPanel(mnx-35, cz, D, Math.PI/2);  // left
+  wallPanel(mxx+35, cz, D, -Math.PI/2); // right
+  // roof + cool light strips
+  const roof=new THREE.Mesh(new THREE.PlaneGeometry(W,D),
+    new THREE.MeshStandardMaterial({color:0x0e1118,roughness:.95,side:THREE.DoubleSide}));
+  roof.rotation.x=Math.PI/2; roof.position.set(cx,roofY,cz); scene.add(roof);
+  const stripMat=new THREE.MeshStandardMaterial({color:0xffffff,emissive:0xeaf0ff,emissiveIntensity:.9});
+  for(let gx=mnx; gx<=mxx; gx+=26){
+    const s=new THREE.Mesh(new THREE.BoxGeometry(1.2,0.3,D-50),stripMat);
+    s.position.set(gx,roofY-0.4,cz); scene.add(s);
+  }
+  // lighting: even, cool indoor fill
+  scene.add(new THREE.HemisphereLight(0xc8d2e2,0x0e1016,0.5));
+  const key=new THREE.DirectionalLight(0xffffff,0.45); key.position.set(cx+40,80,cz+30);
+  key.castShadow=true; key.shadow.mapSize.set(1024,1024);
+  const sc=Math.max(W,D)*0.6; key.shadow.camera.left=-sc;key.shadow.camera.right=sc;
+  key.shadow.camera.top=sc;key.shadow.camera.bottom=-sc;key.shadow.camera.far=260;
+  key.shadow.bias=-0.0005; scene.add(key); scene.add(key.target); key.target.position.set(cx,0,cz);
+  scene.add(new THREE.AmbientLight(0xffffff,0.18));
+}
+
 function buildEnvironment(scene, env){
+  if(env==='indoor'){ buildIndoorEnvironment(scene); return; }
   const marsh = env==='marsh', fuji=env==='fuji', grass=env==='grassland';
   // sky dome gradient
   const skyGeo=new THREE.SphereGeometry(2000,32,16);
@@ -2497,13 +2637,15 @@ function buildShowcase(){
 
 function buildRace(trackKey){
   const def=TRACKS[trackKey]||TRACKS.nurburgring;
+  const indoor=def.env==='indoor';
   const scene=new THREE.Scene();
   const cam=new THREE.PerspectiveCamera(60,innerWidth/innerHeight,0.4,5200);
-  addRaceLights(scene);
+  if(!indoor) addRaceLights(scene);        // indoor provides its own even lighting
   buildTrack(scene,def);
   buildEnvironment(scene,def.env);
   const pmrem=new THREE.PMREMGenerator(renderer);
-  const envScene=new THREE.Scene();envScene.background=new THREE.Color(def.env==='marsh'?0xbcd0c4:0x9fc3e8);
+  const envScene=new THREE.Scene();
+  envScene.background=new THREE.Color(indoor?0x44474f:(def.env==='marsh'?0xbcd0c4:0x9fc3e8));
   scene.environment=pmrem.fromScene(envScene,0.03).texture;  // <=20 samples -> no sigmaRadians clip warning
   return {scene,cam};
 }
@@ -2523,6 +2665,7 @@ function writeSave(s){try{localStorage.setItem(SAVE_KEY,JSON.stringify(s));}catc
 function clearSave(){localStorage.removeItem(SAVE_KEY);}
 
 let GAME={team:null};
+if(location.hash==='#debug')setTimeout(()=>{window.__GAME=GAME;},0);
 
 /* ======================================================================
    12.  UI flow / state machine
@@ -3338,6 +3481,7 @@ const Input={throttle:0,brake:0,steer:0,handbrake:false};
 const keys={};
 addEventListener('keydown',e=>{keys[e.code]=true;
   if(e.code==='KeyT' && STATE==='race' && sim && sim.fuel>0){ turboOn=!turboOn; }
+  if(e.code==='KeyC' && STATE==='race'){ fpView=!fpView; }
   if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space'].includes(e.code))e.preventDefault();});
 addEventListener('keyup',e=>{keys[e.code]=false;});
 
@@ -3387,6 +3531,8 @@ function startRace(trackKey,mode,laps,numAIs,gridOrder){
   document.getElementById('hud').classList.toggle('vsai',aiCount>0);
   // move the ONE shared car into the race scene (no second mesh built)
   raceCar=getCar(GAME.team);race.scene.add(raceCar.root);
+  fpView=!!raceCar.isKart;            // karts default to first-person; toggle with C
+  document.getElementById('hud').classList.toggle('kart',!!raceCar.isKart);
   TUNE=computeTune(GAME.team);          // car feel depends on installed upgrades
   sim=new CarSim();sim.reset(8);sim.tune=TUNE;
   // ---- AI field (1..5) ----
@@ -3431,10 +3577,12 @@ function startRace(trackKey,mode,laps,numAIs,gridOrder){
   for(let i=0;i<3;i++){const e=$('#sec'+i);e.className='sec';e.querySelector('b').textContent='—';}
   // place camera behind
   const f=sim.fwd();camPos.set(sim.x-f[0]*9,5,sim.z-f[1]*9);
+  if(TRACK._obstacles) TRACK._obstacles.forEach(o=>{o.hit=false; if(o.mesh){o.mesh.rotation.z=0;}});
   initSkid(race.scene);
   initAudio();
   flash('3');
 }
+if(location.hash==='#debug')window.__startRace=startRace;
 let bestSector=[null,null,null], lastSector=[null,null,null], refBySeg=null, curBySeg=null;
 let curSec=0, secStartClock=0;
 function secOf(seg){return Math.min(2,Math.floor(seg/(TRACK.N/3)));}
@@ -3757,6 +3905,10 @@ function raceUpdate(dt){
     if(n>0 && n<=3 && countdown>0){if(_lastN!==n){_lastN=n;flash(n.toString());}}
     if(countdown<=0.2 && _lastN!==0){_lastN=0;flash('GO');}
     if(countdown<=0){raceState='running';lapStart=raceClock=0;}
+    // keep cars sitting on the grid (so first-person/chase frames it correctly)
+    raceCar.root.position.set(sim.x,segY(sim.seg),sim.z); raceCar.root.rotation.y=sim.heading;
+    spinWheelsVisual(raceCar,0,0);
+    for(const a of ais){ a.car.root.position.set(a.sim.x,segY(a.sim.seg),a.sim.z); a.car.root.rotation.y=a.sim.heading; }
     // idle cam
     updateChaseCam(dt,0);
     audioUpdate(0,0,false);
@@ -3776,7 +3928,7 @@ function raceUpdate(dt){
   // plus a one-shot jolt when you first clip it
   const t=performance.now();
   const vib=Math.sin(t*0.045)*0.05*sim.kerbLift;
-  raceCar.root.position.y=sim.kerbLift*0.10 + vib + sim.bump*0.04;
+  raceCar.root.position.y=segY(sim.seg) + sim.kerbLift*0.10 + vib + sim.bump*0.04;
   // little body roll into the lift so it reads as climbing the kerb
   raceCar.root.rotation.z=Math.sin(t*0.04)*0.03*sim.kerbLift - sim.steerVis*sim._sp01*0.04;
   spinWheelsVisual(raceCar,sim.wheelSpin, sim.steerVis*0.5);
@@ -3786,7 +3938,7 @@ function raceUpdate(dt){
   if(ais.length){
     for(const a of ais){
       a.sim.update(dt, aiControl(a.sim,sim,dt));
-      a.car.root.position.set(a.sim.x, a.sim.kerbLift*0.10 + a.sim.bump*0.04, a.sim.z);
+      a.car.root.position.set(a.sim.x, segY(a.sim.seg) + a.sim.kerbLift*0.10 + a.sim.bump*0.04, a.sim.z);
       a.car.root.rotation.y=a.sim.heading;
       a.car.root.rotation.z=-a.sim.steerVis*(a.sim._sp01||0)*0.04;
       spinWheelsVisual(a.car,a.sim.wheelSpin, a.sim.steerVis*0.5);
@@ -3897,6 +4049,17 @@ function raceUpdate(dt){
   // audio
   const slip=clamp(sim.slip + (sim.surf==='grass'?0.3:0),0,1);
   audioUpdate(sim._sp01||0, slip, Input.throttle>0.1);
+  // kart obstacle cones: clip one and it scrubs your speed + gets knocked aside
+  if(TRACK._obstacles){
+    for(const o of TRACK._obstacles){
+      const d=Math.hypot(sim.x-o.x,sim.z-o.z);
+      if(d<1.0 && !o.hit){
+        o.hit=true; sim.vx*=0.55; sim.vz*=0.55; camShake(0.4); audioHit(0.25);
+        if(o.mesh){ o.mesh.rotation.z=1.3; o.mesh.position.y-=0.3; }
+        toast('Cone! Keep it clean');
+      }
+    }
+  }
   // crowd cheers when you sweep past a grandstand at pace
   if(TRACK._stands){
     for(const st of TRACK._stands){
@@ -3909,15 +4072,31 @@ function raceUpdate(dt){
 }
 let _lastN=99;
 
+let fpView=false;
 function updateChaseCam(dt,sp01){
   const f=sim?sim.fwd():[0,1];
+  const ey0=segY(sim.seg);
+  if(fpView){
+    // first-person: eye just behind/above the steering wheel, looking down the road
+    const eye=new THREE.Vector3(sim.x - f[0]*0.15, ey0+1.18, sim.z - f[1]*0.15);
+    camPos.lerp(eye,1-Math.exp(-22*dt));
+    const lean=(sim.steerVis||0)*2.4;            // look slightly into the corner
+    const ahead=new THREE.Vector3(sim.x+f[0]*9 - f[1]*lean, ey0+0.78, sim.z+f[1]*9 + f[0]*lean);
+    camLook.lerp(ahead,1-Math.exp(-16*dt));
+    let shake=_shake; if(sp01>0.6)shake+=(sp01-0.6)*0.5; _shake=Math.max(0,_shake-dt*3);
+    const sy=(Math.random()-.5)*shake*0.35;
+    race.cam.position.copy(camPos).add(new THREE.Vector3(0,sy,0));
+    race.cam.lookAt(camLook);
+    race.cam.fov=lerp(74,86,sp01); race.cam.updateProjectionMatrix();
+    return;
+  }
   // camera lags behind with positional + rotational delay -> sense of speed
   const back=6.6+sp01*2.8, up=3.4+sp01*0.7;
-  const desired=new THREE.Vector3(sim.x-f[0]*back, up, sim.z-f[1]*back);
+  const desired=new THREE.Vector3(sim.x-f[0]*back, ey0+up, sim.z-f[1]*back);
   const rate=lerp(4.5,7.5,sp01);
   camPos.lerp(desired,1-Math.exp(-rate*dt));
   // look target slightly ahead
-  const ahead=new THREE.Vector3(sim.x+f[0]*5.5, 1.1, sim.z+f[1]*5.5);
+  const ahead=new THREE.Vector3(sim.x+f[0]*5.5, ey0+1.1, sim.z+f[1]*5.5);
   camLook.lerp(ahead,1-Math.exp(-9*dt));
   // speed shake (>75%)
   let shake=_shake;
