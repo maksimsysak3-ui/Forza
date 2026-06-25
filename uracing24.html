@@ -571,6 +571,17 @@
     opacity:0;transition:opacity .2s}
   .dd-flash.show{opacity:1}
   .dd-flash.bad{color:#ff6a6a}.dd-flash.good{color:#5ef08a}
+  /* big, always-visible traffic-light state for your direction of travel */
+  .dd-light{position:absolute;left:20px;top:50%;transform:translateY(-50%);
+    background:linear-gradient(180deg,rgba(14,18,30,.94),rgba(9,11,20,.94));
+    border:1px solid rgba(120,140,255,.22);border-radius:16px;padding:12px 11px 8px;
+    display:flex;flex-direction:column;align-items:center;gap:9px}
+  .dd-light .lmp{width:34px;height:34px;border-radius:50%;background:#15171e;
+    border:2px solid rgba(0,0,0,.5);transition:.1s}
+  .dd-light .lmp.r.on{background:#ff2a2a;box-shadow:0 0 22px 5px rgba(255,42,42,.95)}
+  .dd-light .lmp.g.on{background:#22ff5a;box-shadow:0 0 22px 5px rgba(34,255,90,.95)}
+  .dd-light span{font-size:10px;font-weight:800;letter-spacing:.18em;color:#aab2c8}
+  .dd-light.go span{color:#5ef08a}.dd-light.stop span{color:#ff6a6a}
   /* damage box (race HUD) */
   .dmgbox{position:absolute;right:258px;bottom:30px;display:flex;flex-direction:column;align-items:center;
     gap:4px;padding:7px 9px 5px;background:rgba(10,13,22,.72);border:1px solid rgba(130,150,255,.2);
@@ -714,6 +725,10 @@
           <div class="dd-score"><span>SCORE</span><b id="ddScore">0</b></div>
           <div class="dd-wanted" id="ddWanted"><span>WANTED</span><b id="ddStars">—</b></div>
         </div>
+      </div>
+      <div class="dd-light" id="ddLight">
+        <i class="lmp r" id="ddLR"></i><i class="lmp g" id="ddLG"></i>
+        <span id="ddLTxt">STOP</span>
       </div>
       <div class="dd-flash" id="ddFlash"></div>
     </div>
@@ -1623,10 +1638,10 @@ function buildCity(scene, def){
     const grp=new THREE.Group(); grp.position.set(x+roadHalf+1.4, 0, z+roadHalf+1.4); scene.add(grp);
     const pole=new THREE.Mesh(new THREE.CylinderGeometry(0.22,0.22,5.4,8),poleM); pole.position.y=2.7; grp.add(pole);
     const head=new THREE.Mesh(new THREE.BoxGeometry(0.7,1.8,0.7),poleM); head.position.y=5.4; grp.add(head);
-    const red=new THREE.Mesh(new THREE.SphereGeometry(0.26,10,8),new THREE.MeshStandardMaterial({color:0x551111,emissive:0xff2222,emissiveIntensity:0}));
-    red.position.set(0,5.9,0.36); grp.add(red);
-    const grn=new THREE.Mesh(new THREE.SphereGeometry(0.26,10,8),new THREE.MeshStandardMaterial({color:0x115511,emissive:0x22ff44,emissiveIntensity:0}));
-    grn.position.set(0,4.9,0.36); grp.add(grn);
+    const red=new THREE.Mesh(new THREE.SphereGeometry(0.42,12,10),new THREE.MeshStandardMaterial({color:0x551111,emissive:0xff2222,emissiveIntensity:0}));
+    red.position.set(0,6.1,0.42); grp.add(red);
+    const grn=new THREE.Mesh(new THREE.SphereGeometry(0.42,12,10),new THREE.MeshStandardMaterial({color:0x115511,emissive:0x22ff44,emissiveIntensity:0}));
+    grn.position.set(0,4.8,0.42); grp.add(grn);
     CITY.lights.push({x,z, red:red.material, grn:grn.material, phase:Math.random()});
   }));
   // ---- perimeter fence ----
@@ -1761,7 +1776,7 @@ function updateRouteLine(){
   if(!moved && !tgtChanged) return;
   DELIVERY._routeFrom={x:sim.x,z:sim.z}; DELIVERY._routeTo=tgt;
   const path=cityRoute({x:sim.x,z:sim.z},tgt);
-  const g=buildRouteGeom(path,2.2);
+  const g=buildRouteGeom(path,6.5);
   if(DELIVERY.routeMesh.geometry) DELIVERY.routeMesh.geometry.dispose();
   DELIVERY.routeMesh.geometry=g; DELIVERY.routeMesh.visible=true;
 }
@@ -1789,7 +1804,7 @@ function setupDeliveryWorld(){
   DELIVERY.dropMk=makeMarker(0xf4a300); grp.add(DELIVERY.dropMk);
   // green on-road guide line to the current target (GPS-style)
   const routeMesh=new THREE.Mesh(new THREE.BufferGeometry(),
-    new THREE.MeshBasicMaterial({color:0x29e36a,transparent:true,opacity:0.85,
+    new THREE.MeshBasicMaterial({color:0x12ff5a,transparent:true,opacity:0.95,
       depthWrite:false,polygonOffset:true,polygonOffsetFactor:-4,polygonOffsetUnits:-4}));
   routeMesh.renderOrder=3; routeMesh.visible=false; routeMesh.frustumCulled=false;
   grp.add(routeMesh); DELIVERY.routeMesh=routeMesh;
@@ -1849,7 +1864,15 @@ function cityUpdate(dt){
   DELIVERY.lightT=(DELIVERY.lightT||0)+dt;
   const avGreen=((DELIVERY.lightT%9)<4.3);
   for(const L of CITY.lights){ L.avGreen=avGreen;
-    L.red.emissiveIntensity = avGreen?0.05:1.4; L.grn.emissiveIntensity = avGreen?1.4:0.05; }
+    L.red.emissiveIntensity = avGreen?0.0:3.0; L.grn.emissiveIntensity = avGreen?3.0:0.0; }
+  // ---- HUD traffic-light: state for YOUR direction of travel ----
+  // on an avenue you travel along z; avenues are green while avGreen is true
+  { const f=sim.fwd(); const onAvAxis=Math.abs(f[1])>=Math.abs(f[0]);
+    const myGreen = onAvAxis?avGreen:!avGreen;
+    const lr=$('#ddLR'), lg=$('#ddLG'), box=$('#ddLight'), txt=$('#ddLTxt');
+    if(lr&&lg){ lr.classList.toggle('on',!myGreen); lg.classList.toggle('on',myGreen);
+      box.classList.toggle('go',myGreen); box.classList.toggle('stop',!myGreen);
+      txt.textContent = myGreen?'GO':'STOP'; } }
   // ---- traffic cars ----
   const b=CITY.bounds;
   for(const c of DELIVERY.traffic){
@@ -1951,6 +1974,11 @@ function drawCityMinimap(){
   if(tgt){ x.fillStyle=DELIVERY.phase==='pickup'?'#35e07a':'#f4a300';
     x.beginPath();x.arc(X(tgt.x),Z(tgt.z),7,0,TAU);x.fill(); }
   if(DELIVERY.traffic) { x.fillStyle='#ff6a6a'; DELIVERY.traffic.forEach(c=>{x.fillRect(X(c.mesh.position.x)-2,Z(c.mesh.position.z)-2,4,4);}); }
+  // your car: a bright white dot with a dark ring so it always stands out
+  if(sim){ const cxp=X(sim.x), czp=Z(sim.z);
+    x.beginPath(); x.arc(cxp,czp,6.5,0,TAU);
+    x.fillStyle='#fff'; x.fill();
+    x.lineWidth=2.5; x.strokeStyle='#0a0d16'; x.stroke(); }
 }
 
 function buildTrack(scene, def){
