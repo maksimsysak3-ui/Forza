@@ -495,6 +495,16 @@
   .dmg-legend{display:flex;justify-content:center;gap:16px;font-size:11px;color:#9aa6d0;margin-bottom:8px}
   .dmg-legend i{display:inline-block;width:11px;height:11px;border-radius:3px;margin-right:5px;vertical-align:-1px}
   .dmg-note{font-size:12px;color:#8a96c2;text-align:center;line-height:1.5;padding:0 8px}
+  /* qualifying classification */
+  .quali-list{display:flex;flex-direction:column;gap:6px;margin:8px 0 4px}
+  .quali-row{display:flex;align-items:center;gap:12px;padding:9px 13px;border-radius:9px;
+    background:rgba(18,23,38,.7);border:1px solid rgba(120,140,255,.12)}
+  .quali-row.you{border-color:rgba(255,90,90,.5);background:rgba(60,20,24,.4)}
+  .quali-pos{width:24px;font-weight:800;color:#9aa6d0;text-align:center}
+  .quali-row.you .quali-pos{color:#ff7a7a}
+  .quali-nm{flex:1;font-weight:700;font-size:14px}
+  .quali-tm{font-variant-numeric:tabular-nums;color:#cdd5ec;font-size:14px}
+  .quali-row.p1 .quali-tm{color:#c08bff}
 
   /* ---------- Intro / loader ---------- */
   #loader{position:fixed;inset:0;z-index:9;background:#05070d;display:flex;
@@ -803,11 +813,28 @@
       <div class="rcm-head"><div class="rcm-k">Event</div><h2 id="rcmTrack">Nürburgring</h2></div>
       <div class="rcm-laprow"><div class="rcm-k">Race distance</div>
         <div class="rcm-laps" id="rcmLaps"></div></div>
+      <div class="rcm-laprow" id="rcmGridRow"><div class="rcm-k">Rivals on the grid</div>
+        <div class="rcm-laps" id="rcmGrid"></div></div>
       <div class="rcm-modes">
         <button class="rcm-mode" data-mode="solo">
           <div class="rcm-ic">◷</div><b>SOLO</b><span>Hot-lap — chase your best time and sectors</span></button>
-        <button class="rcm-mode primary" data-mode="ai">
-          <div class="rcm-ic">⚔</div><b>1 v 1 · AI RIVAL</b><span>Wheel-to-wheel against a strong AI rival</span></button>
+        <button class="rcm-mode" data-mode="race">
+          <div class="rcm-ic">⚔</div><b>QUICK RACE</b><span>Wheel-to-wheel against 1–5 AI rivals</span></button>
+        <button class="rcm-mode primary" data-mode="weekend">
+          <div class="rcm-ic">🏁</div><b>FULL RACE WEEKEND</b><span>Cinematic intro, qualifying hot-lap, then the race</span></button>
+      </div>
+    </div>
+  </div>
+
+  <!-- qualifying results -->
+  <div class="rcmodal" id="qualiModal">
+    <div class="rcm-card" style="max-width:460px">
+      <div class="rcm-head"><div class="rcm-k" id="qualiSub">Qualifying</div><h2 id="qualiTitle">Provisional Grid</h2></div>
+      <div class="quali-list" id="qualiList"></div>
+      <div class="wiz-foot" style="border:none;background:none;padding:14px 0 2px">
+        <button class="btn ghost" id="qualiExit" style="width:auto;padding:12px 18px">BACK TO GARAGE</button>
+        <div class="wiz-spacer"></div>
+        <button class="btn primary" id="qualiGo" style="width:auto;padding:12px 26px">START RACE →</button>
       </div>
     </div>
   </div>
@@ -2662,7 +2689,7 @@ $('#btnEditLivery').onclick=()=>openWizard(true);
 $('#btnGarageMenu').onclick=()=>{STATE='menu';activeScene=null;activeCam=null;showScreen('menu');};
 $('#btnRace').onclick=()=>chooseRace(raceTrackKey||'nurburgring');
 $('#pausebtn').onclick=()=>exitRace();
-let pendingTrack='nurburgring', selectedLaps=5;
+let pendingTrack='nurburgring', selectedLaps=5, selectedAIs=3;
 const LAP_OPTS=[3,5,10,20,50,100];
 function buildLapPicker(){
   const host=$('#rcmLaps'); if(!host)return; host.innerHTML='';
@@ -2672,12 +2699,24 @@ function buildLapPicker(){
     d.onclick=()=>{selectedLaps=n;buildLapPicker();};
     host.appendChild(d);});
 }
+function buildGridPicker(){
+  const host=$('#rcmGrid'); if(!host)return; host.innerHTML='';
+  for(let n=1;n<=5;n++){const d=document.createElement('div');
+    d.className='rcm-lap'+(n===selectedAIs?' sel':'');
+    d.innerHTML=n+'<small>AI</small>';
+    d.onclick=()=>{selectedAIs=n;buildGridPicker();};
+    host.appendChild(d);}
+}
 function chooseRace(track){ pendingTrack=track||'nurburgring';
   $('#rcmTrack').textContent=(TRACKS[pendingTrack]&&TRACKS[pendingTrack].name)||'Race';
-  buildLapPicker();
+  buildLapPicker();buildGridPicker();
   $('#raceChoose').classList.add('show'); }
 document.querySelectorAll('.rcm-mode').forEach(b=>b.onclick=()=>{
-  $('#raceChoose').classList.remove('show'); startRace(pendingTrack,b.dataset.mode,selectedLaps); });
+  $('#raceChoose').classList.remove('show');
+  const mode=b.dataset.mode;
+  if(mode==='weekend'){ startWeekend(pendingTrack,selectedLaps,selectedAIs); }
+  else startRace(pendingTrack,mode,selectedLaps,mode==='race'?selectedAIs:0);
+});
 $('#rcClose').onclick=()=>$('#raceChoose').classList.remove('show');
 $('#raceChoose').onclick=e=>{if(e.target.id==='raceChoose')e.currentTarget.classList.remove('show');};
 
@@ -3228,38 +3267,59 @@ let lap=1, lapStart=0, lastCrossSeg=0, raceClock=0, countdown=0, bestLapShown=nu
 let lapTarget=5, fuelMax=20, turboOn=false;
 let camPos=new THREE.Vector3(), camLook=new THREE.Vector3();
 
-let raceTrackKey=null, raceMode='solo', aiSim=null, aiCar=null;
+let raceTrackKey=null, raceMode='solo', ais=[];
 const AI_TUNE={top:1.08,accel:1.16,brake:1.06,grip:1.08,steer:1.02};   // strong rival
-function startRace(trackKey,mode,laps){
+const AI_COLORS=[['#e8e8ee','#ff3b3b','2','R'],['#ffd24a','#101216','5','K'],
+  ['#1aa7ff','#ffffff','9','V'],['#1ec96b','#06301c','3','M'],['#9b51e0','#ffffff','11','X']];
+// place car for grid slot k (0 = player, front-left), rows of two going backwards
+function gridSlot(k){
+  const N=TRACK.N, row=Math.floor(k/2), colSign=(k%2===0)?-1:1;
+  const segI=((8 - row*5)%N+N)%N, nl=TRACK.nrmL[segI], c=TRACK.C[segI];
+  return {x:c.x+nl.x*colSign*3.1, z:c.z+nl.z*colSign*3.1, seg:segI, off:colSign*3.1,
+    heading:Math.atan2(TRACK.tan[segI].x,TRACK.tan[segI].z)};
+}
+function clearAIs(){ for(const a of ais){ if(a.car&&a.car.root.parent)race.scene.remove(a.car.root); } ais=[]; }
+function startRace(trackKey,mode,laps,numAIs,gridOrder){
   if(location.hash==='#debug')window.__startRace=startRace;
   trackKey=trackKey||raceTrackKey||'nurburgring';
   raceMode=mode||'solo';
   lapTarget=laps||5;
+  const aiCount=(raceMode==='solo')?0:Math.max(0,Math.min(5,numAIs|0));
   if(!race || raceTrackKey!==trackKey){ race=buildRace(trackKey); raceTrackKey=trackKey; }
   if(location.hash==='#debug'){window.__race=race;window.__renderer=renderer;window.__THREE=THREE;}
   STATE='race';raceState='countdown';
   activeScene=race.scene;activeCam=race.cam;
   hideAllScreens();
   $('#hud').classList.add('show');
-  document.getElementById('hud').classList.toggle('vsai',raceMode==='ai');
+  document.getElementById('hud').classList.toggle('vsai',aiCount>0);
   // move the ONE shared car into the race scene (no second mesh built)
   raceCar=getCar(GAME.team);race.scene.add(raceCar.root);
   TUNE=computeTune(GAME.team);          // car feel depends on installed upgrades
-  sim=new CarSim();sim.reset(3);sim.tune=TUNE;
-  // ---- AI rival ----
-  if(aiCar){race.scene.remove(aiCar.root);aiCar=null;}
-  aiSim=null;
-  if(raceMode==='ai'){
-    const aiTeam={name:'Rival',color:'#e8e8ee',accent:'#ff3b3b',number:'2',logo:'R'};
-    aiCar=makeCar(aiTeam);race.scene.add(aiCar.root);
-    aiSim=new CarSim();aiSim.reset(3);aiSim.tune=AI_TUNE;aiSim.aiOffset=0;
-    // grid: player on the right, rival on the left of the same start line
-    const gi=3, nl=TRACK.nrmL[gi];
-    sim.x  =TRACK.C[gi].x+nl.x*-3.2; sim.z  =TRACK.C[gi].z+nl.z*-3.2;
-    aiSim.x=TRACK.C[gi].x+nl.x* 3.2; aiSim.z=TRACK.C[gi].z+nl.z* 3.2;
-    aiSim.aiOffset=3.2;
+  sim=new CarSim();sim.reset(8);sim.tune=TUNE;
+  // ---- AI field (1..5) ----
+  clearAIs();
+  // grid order: player slot from gridOrder (quali) or pole; AIs fill the rest
+  const order = gridOrder || null;       // array of {who:'you'|idx, ...} not needed; we use playerSlot
+  const playerSlot = order ? order.playerSlot : 0;
+  const ps=gridSlot(playerSlot);
+  sim.x=ps.x; sim.z=ps.z; sim.heading=ps.heading; sim.seg=ps.seg;
+  let slot=0;
+  for(let n=0;n<aiCount;n++){
+    if(slot===playerSlot) slot++;        // skip the player's slot
+    const col=AI_COLORS[n%AI_COLORS.length];
+    const team={name:'GT '+col[2],color:col[0],accent:col[1],number:col[2],logo:col[3]};
+    const car=makeCar(team); race.scene.add(car.root);
+    const s=new CarSim(); s.reset(8);
+    // per-AI pace spread: front runners a touch quicker, back markers slower (+ jitter)
+    const paceBias = order && order.aiPace ? order.aiPace[n] : ((aiCount-1)/2 - n)*0.014;
+    const v = 1 + paceBias + (Math.random()-0.5)*0.012;
+    s.tune={top:AI_TUNE.top*v, accel:AI_TUNE.accel*v, brake:AI_TUNE.brake, grip:AI_TUNE.grip, steer:AI_TUNE.steer};
+    const g=gridSlot(slot);
+    s.x=g.x; s.z=g.z; s.heading=g.heading; s.seg=g.seg; s.aiOffset=g.off;
+    ais.push({sim:s,car,name:team.name,color:col[0]});
+    slot++;
   }
-  if(location.hash==='#debug'){window.__sim=sim;window.__TRACK=TRACK;}
+  if(location.hash==='#debug'){window.__sim=sim;window.__TRACK=TRACK;window.__ais=ais;}
   lap=1;raceClock=0;lapStart=0;lastCrossSeg=sim.seg;countdown=3.2;
   // ---- fuel + turbo: tank starts ~20% over what a clean run needs ----
   fuelMax=4*lapTarget; sim.fuel=fuelMax; turboOn=false; sim.boost=false;
@@ -3285,6 +3345,51 @@ function startRace(trackKey,mode,laps){
 let bestSector=[null,null,null], lastSector=[null,null,null], refBySeg=null, curBySeg=null;
 let curSec=0, secStartClock=0;
 function secOf(seg){return Math.min(2,Math.floor(seg/(TRACK.N/3)));}
+
+/* ---- Full Race Weekend: cinematic -> qualifying -> race ---- */
+let weekend=null;
+function startWeekend(track,laps,aiCount){
+  weekend={track,laps,aiCount:Math.max(1,Math.min(5,aiCount||1))};
+  // cinematic intro then qualifying (cinematic added in playWeekendCinematic; falls through if absent)
+  if(typeof playWeekendCinematic==='function') playWeekendCinematic(track,()=>startQuali());
+  else startQuali();
+}
+function startQuali(){
+  startRace(weekend.track,'quali',3,0);
+  toast('Warm-up lap, then a flying lap to set your time');
+}
+if(location.hash==='#debug')window.__qualiFinish=(t)=>qualiFinish(t);
+function qualiFinish(playerTime){
+  audioSilence();
+  const aiCount=weekend.aiCount;
+  const entries=[{name:GAME.team.name,t:playerTime,you:true}];
+  const paces=[];
+  for(let n=0;n<aiCount;n++){
+    const bias=((aiCount-1)/2 - n)*0.014;          // same bias the race uses
+    const factor=1 - bias + (Math.random()-0.5)*0.022;  // faster pace => lower time
+    entries.push({name:'GT '+AI_COLORS[n%AI_COLORS.length][2],t:playerTime*factor,you:false});
+    paces.push(bias);
+  }
+  entries.sort((a,b)=>a.t-b.t);
+  const pos=entries.findIndex(e=>e.you)+1, last=pos===entries.length;
+  const host=$('#qualiList');host.innerHTML='';
+  entries.forEach((e,i)=>{const r=document.createElement('div');
+    r.className='quali-row'+(e.you?' you':'')+(i===0?' p1':'');
+    r.innerHTML=`<div class="quali-pos">P${i+1}</div><div class="quali-nm">${e.name}${e.you?' (You)':''}</div><div class="quali-tm">${fmtTime(e.t)}</div>`;
+    host.appendChild(r);});
+  $('#qualiSub').textContent='Qualifying · '+((TRACKS[weekend.track]||{}).name||'');
+  weekend.playerSlot=pos-1; weekend.aiPace=paces;
+  const go=$('#qualiGo');
+  if(last){ $('#qualiTitle').textContent='Eliminated in Qualifying'; go.style.display='none';
+    toast('Beaten by the whole field — you failed to qualify'); }
+  else { $('#qualiTitle').textContent='Provisional Grid — P'+pos; go.style.display=''; }
+  hideAllScreens(); $('#hud').classList.remove('show');
+  $('#qualiModal').classList.add('show');
+}
+$('#qualiGo').onclick=()=>{ $('#qualiModal').classList.remove('show');
+  startRace(weekend.track,'race',weekend.laps,weekend.aiCount,{playerSlot:weekend.playerSlot,aiPace:weekend.aiPace}); };
+$('#qualiExit').onclick=()=>{ $('#qualiModal').classList.remove('show'); raceState='idle'; enterGarage(); };
+
 function exitRace(){
   raceState='idle';audioSilence();
   // save race count
@@ -3410,12 +3515,20 @@ function prog(s){ if(s._lastSeg===undefined){s._lastSeg=s.seg;s._laps=0;}
   if(s._lastSeg>TRACK.N*0.7 && s.seg<TRACK.N*0.3)s._laps++;
   s._lastSeg=s.seg; s._prog=s._laps*TRACK.N+s.seg; }
 function updateBattleHud(){
-  if(!aiSim)return; prog(sim); prog(aiSim);
-  const lead=sim._prog>=aiSim._prog, mPer=TRACK.curve.getLength()/TRACK.N;
-  const gap=Math.abs(sim._prog-aiSim._prog)*mPer;
+  if(!ais.length)return;
+  prog(sim); ais.forEach(a=>prog(a.sim));
+  const field=[{me:true,p:sim._prog}].concat(ais.map(a=>({me:false,p:a.sim._prog})));
+  field.sort((a,b)=>b.p-a.p);
+  const pos=field.findIndex(f=>f.me)+1, total=field.length;
+  const mPer=TRACK.curve.getLength()/TRACK.N;
+  // gap to the car directly ahead (or behind if leading)
+  let gap=0, lead=pos===1;
+  if(pos>1) gap=(field[pos-2].p-sim._prog)*mPer;
+  else if(field.length>1) gap=(sim._prog-field[1].p)*mPer;
   const pe=$('#battlePos'), ge=$('#battleGap');
-  if(pe){pe.textContent=lead?'P1':'P2';pe.className='bp '+(lead?'lead':'chase');}
-  if(ge)ge.textContent=(lead?'+':'−')+gap.toFixed(0)+'m';
+  if(pe){pe.textContent='P'+pos+'/'+total;pe.className='bp '+(lead?'lead':'chase');}
+  if(ge)ge.textContent=(lead?'+':'−')+Math.abs(gap).toFixed(0)+'m';
+  sim._racePos=pos; sim._raceTotal=total;
 }
 
 /* ---- skid / tire marks: ring-buffer of flat dark quads laid on tarmac while sliding ---- */
@@ -3487,25 +3600,28 @@ function raceUpdate(dt){
   spinWheelsVisual(raceCar,sim.wheelSpin, sim.steerVis*0.5);
   layCarSkid(sim);
 
-  // ---- AI rival ----
-  if(aiSim){
-    aiSim.update(dt, aiControl(aiSim,sim,dt));
-    aiCar.root.position.set(aiSim.x, aiSim.kerbLift*0.10 + aiSim.bump*0.04, aiSim.z);
-    aiCar.root.rotation.y=aiSim.heading;
-    aiCar.root.rotation.z=-aiSim.steerVis*(aiSim._sp01||0)*0.04;
-    spinWheelsVisual(aiCar,aiSim.wheelSpin, aiSim.steerVis*0.5);
-    layCarSkid(aiSim);
-    // soft car-to-car collision (no flips, gentle separation)
-    const ddx=sim.x-aiSim.x, ddz=sim.z-aiSim.z, dd=Math.hypot(ddx,ddz);
-    const MIN=3.0;
-    if(dd<MIN && dd>0.001){
-      const nx=ddx/dd, nz=ddz/dd, push=(MIN-dd)*0.5;
-      sim.x+=nx*push; sim.z+=nz*push; aiSim.x-=nx*push; aiSim.z-=nz*push;
-      const rel=(sim.vx-aiSim.vx)*nx+(sim.vz-aiSim.vz)*nz;
-      if(rel<0){ const j=rel*0.5;
-        sim.vx-=j*nx;sim.vz-=j*nz; aiSim.vx+=j*nx;aiSim.vz+=j*nz; }
-      raceCar.root.position.set(sim.x,raceCar.root.position.y,sim.z);
+  // ---- AI field (1..5) ----
+  if(ais.length){
+    for(const a of ais){
+      a.sim.update(dt, aiControl(a.sim,sim,dt));
+      a.car.root.position.set(a.sim.x, a.sim.kerbLift*0.10 + a.sim.bump*0.04, a.sim.z);
+      a.car.root.rotation.y=a.sim.heading;
+      a.car.root.rotation.z=-a.sim.steerVis*(a.sim._sp01||0)*0.04;
+      spinWheelsVisual(a.car,a.sim.wheelSpin, a.sim.steerVis*0.5);
+      layCarSkid(a.sim);
     }
+    // soft pairwise separation among ALL cars (player + AIs)
+    const cars=[sim].concat(ais.map(a=>a.sim)), MIN=3.0;
+    for(let i=0;i<cars.length;i++)for(let j=i+1;j<cars.length;j++){
+      const A=cars[i],B=cars[j],ddx=A.x-B.x,ddz=A.z-B.z,dd=Math.hypot(ddx,ddz);
+      if(dd<MIN && dd>0.001){
+        const nx=ddx/dd,nz=ddz/dd,push=(MIN-dd)*0.5;
+        A.x+=nx*push;A.z+=nz*push;B.x-=nx*push;B.z-=nz*push;
+        const rel=(A.vx-B.vx)*nx+(A.vz-B.vz)*nz;
+        if(rel<0){const k=rel*0.5;A.vx-=k*nx;A.vz-=k*nz;B.vx+=k*nx;B.vz+=k*nz;}
+      }
+    }
+    raceCar.root.position.set(sim.x,raceCar.root.position.y,sim.z);
     updateBattleHud();
   }
 
@@ -3545,7 +3661,17 @@ function raceUpdate(dt){
       }
       lap++;lapStart=raceClock;secStartClock=raceClock;curSec=secOf(0);
       curBySeg=new Float32Array(N).fill(-1);
-      if(lap>lapTarget){flash('FINISH');raceState='finished';setTimeout(()=>exitRace(),2600);}
+      if(raceMode==='quali'){
+        // lap 1 = warm-up out-lap; lap 2 = flying hot-lap that sets the time
+        if(lap===2){ flash('FLYING LAP'); }
+        else { raceState='finished'; qualiFinish(lt); }
+      }
+      else if(lap>lapTarget){
+        const fin=ais.length?(' · P'+(sim._racePos||1)+'/'+(sim._raceTotal||1)):'';
+        flash('FINISH'+fin);raceState='finished';
+        if(ais.length)toast(sim._racePos===1?'Victory! You won the race':'Finished P'+sim._racePos+' of '+sim._raceTotal);
+        setTimeout(()=>exitRace(),2800);
+      }
       else flash('LAP '+lap);
     }
   }
