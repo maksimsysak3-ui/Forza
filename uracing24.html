@@ -565,23 +565,11 @@
   .dd-meta span{font-size:9px;letter-spacing:.18em;color:#8a96c2;display:block}
   .dd-meta b{font-size:18px;font-weight:800;font-variant-numeric:tabular-nums}
   .dd-clock.low b{color:#ff5a5a}
-  .dd-wanted b{color:#ff5a5a;letter-spacing:.05em}
   .dd-flash{position:absolute;top:40%;left:50%;transform:translate(-50%,-50%);
     font-size:34px;font-weight:900;letter-spacing:.04em;color:#fff;text-shadow:0 4px 24px rgba(0,0,0,.6);
     opacity:0;transition:opacity .2s}
   .dd-flash.show{opacity:1}
   .dd-flash.bad{color:#ff6a6a}.dd-flash.good{color:#5ef08a}
-  /* big, always-visible traffic-light state for your direction of travel */
-  .dd-light{position:absolute;left:20px;top:50%;transform:translateY(-50%);
-    background:linear-gradient(180deg,rgba(14,18,30,.94),rgba(9,11,20,.94));
-    border:1px solid rgba(120,140,255,.22);border-radius:16px;padding:12px 11px 8px;
-    display:flex;flex-direction:column;align-items:center;gap:9px}
-  .dd-light .lmp{width:34px;height:34px;border-radius:50%;background:#15171e;
-    border:2px solid rgba(0,0,0,.5);transition:.1s}
-  .dd-light .lmp.r.on{background:#ff2a2a;box-shadow:0 0 22px 5px rgba(255,42,42,.95)}
-  .dd-light .lmp.g.on{background:#22ff5a;box-shadow:0 0 22px 5px rgba(34,255,90,.95)}
-  .dd-light span{font-size:10px;font-weight:800;letter-spacing:.18em;color:#aab2c8}
-  .dd-light.go span{color:#5ef08a}.dd-light.stop span{color:#ff6a6a}
   /* damage box (race HUD) */
   .dmgbox{position:absolute;right:258px;bottom:30px;display:flex;flex-direction:column;align-items:center;
     gap:4px;padding:7px 9px 5px;background:rgba(10,13,22,.72);border:1px solid rgba(130,150,255,.2);
@@ -723,12 +711,7 @@
         <div class="dd-meta">
           <div class="dd-clock"><span>TIME</span><b id="ddTime">2:00</b></div>
           <div class="dd-score"><span>SCORE</span><b id="ddScore">0</b></div>
-          <div class="dd-wanted" id="ddWanted"><span>WANTED</span><b id="ddStars">—</b></div>
         </div>
-      </div>
-      <div class="dd-light" id="ddLight">
-        <i class="lmp r" id="ddLR"></i><i class="lmp g" id="ddLG"></i>
-        <span id="ddLTxt">STOP</span>
       </div>
       <div class="dd-flash" id="ddFlash"></div>
     </div>
@@ -1632,18 +1615,6 @@ function buildCity(scene, def){
   treePos.forEach((p,k)=>{ to.position.set(p[0],1.2,p[1]); to.updateMatrix(); tr.setMatrixAt(k,to.matrix);
     to.position.set(p[0],3.4,p[1]); to.scale.setScalar(0.8+Math.random()*0.5); to.updateMatrix(); lf.setMatrixAt(k,to.matrix); to.scale.setScalar(1); });
   tr.castShadow=true; lf.castShadow=true; scene.add(tr); scene.add(lf);
-  // ---- traffic-light poles at every intersection (state driven in Delivery Dash) ----
-  const poleM=new THREE.MeshStandardMaterial({color:0x2a2e36,metalness:.5,roughness:.5});
-  AV.forEach(x=>ST.forEach(z=>{
-    const grp=new THREE.Group(); grp.position.set(x+roadHalf+1.4, 0, z+roadHalf+1.4); scene.add(grp);
-    const pole=new THREE.Mesh(new THREE.CylinderGeometry(0.22,0.22,5.4,8),poleM); pole.position.y=2.7; grp.add(pole);
-    const head=new THREE.Mesh(new THREE.BoxGeometry(0.7,1.8,0.7),poleM); head.position.y=5.4; grp.add(head);
-    const red=new THREE.Mesh(new THREE.SphereGeometry(0.42,12,10),new THREE.MeshStandardMaterial({color:0x551111,emissive:0xff2222,emissiveIntensity:0}));
-    red.position.set(0,6.1,0.42); grp.add(red);
-    const grn=new THREE.Mesh(new THREE.SphereGeometry(0.42,12,10),new THREE.MeshStandardMaterial({color:0x115511,emissive:0x22ff44,emissiveIntensity:0}));
-    grn.position.set(0,4.8,0.42); grp.add(grn);
-    CITY.lights.push({x,z, red:red.material, grn:grn.material, phase:Math.random()});
-  }));
   // ---- perimeter fence ----
   const fenceM=new THREE.MeshStandardMaterial({color:0x3a4150,roughness:.7,side:THREE.DoubleSide});
   [[cxc,minZ-2,W+200,0],[cxc,maxZ+2,W+200,0],[minX-2,czc,D+200,Math.PI/2],[maxX+2,czc,D+200,Math.PI/2]].forEach(([px,pz,len,ry])=>{
@@ -1860,31 +1831,10 @@ function cityUpdate(dt){
   const mm=Math.floor(DELIVERY.time/60), ss=Math.floor(DELIVERY.time%60);
   $('#ddTime').textContent=mm+':'+(ss<10?'0':'')+ss;
   $('#ddTime').parentElement.classList.toggle('low',DELIVERY.time<20);
-  // ---- traffic lights cycle (period 9s; avenues green first half) ----
-  DELIVERY.lightT=(DELIVERY.lightT||0)+dt;
-  const avGreen=((DELIVERY.lightT%9)<4.3);
-  for(const L of CITY.lights){ L.avGreen=avGreen;
-    L.red.emissiveIntensity = avGreen?0.0:3.0; L.grn.emissiveIntensity = avGreen?3.0:0.0; }
-  // ---- HUD traffic-light: state for YOUR direction of travel ----
-  // on an avenue you travel along z; avenues are green while avGreen is true
-  { const f=sim.fwd(); const onAvAxis=Math.abs(f[1])>=Math.abs(f[0]);
-    const myGreen = onAvAxis?avGreen:!avGreen;
-    const lr=$('#ddLR'), lg=$('#ddLG'), box=$('#ddLight'), txt=$('#ddLTxt');
-    if(lr&&lg){ lr.classList.toggle('on',!myGreen); lg.classList.toggle('on',myGreen);
-      box.classList.toggle('go',myGreen); box.classList.toggle('stop',!myGreen);
-      txt.textContent = myGreen?'GO':'STOP'; } }
-  // ---- traffic cars ----
+  // ---- traffic cars (free-flowing; no traffic lights) ----
   const b=CITY.bounds;
   for(const c of DELIVERY.traffic){
-    // stop if approaching a red intersection
-    let stop=false;
-    for(const sz of (c.onAv?CITY.ST:CITY.AV)){
-      const ahead=(sz-c.pos)*c.dir;
-      if(ahead>1 && ahead<10){ // intersection ahead — red if its cross-light is red for our axis
-        if(c.onAv ? !avGreen : avGreen) stop=true; break;
-      }
-    }
-    if(!stop) c.pos += c.dir*c.speed*dt;
+    c.pos += c.dir*c.speed*dt;
     if(c.onAv){ if(c.pos>b.maxZ-8)c.pos=b.minZ+8; if(c.pos<b.minZ+8)c.pos=b.maxZ-8;
       c.mesh.position.set(c.line+c.lane,0,c.pos); c.mesh.rotation.y=c.dir>0?0:Math.PI; }
     else { if(c.pos>b.maxX-8)c.pos=b.minX+8; if(c.pos<b.minX+8)c.pos=b.maxX-8;
@@ -1898,21 +1848,6 @@ function cityUpdate(dt){
         DELIVERY.score=Math.max(0,DELIVERY.score-10); camShake(0.3); }
     }
   }
-  // ---- red-light running: at a crossing while your axis is red ----
-  const nearAv=CITY.AV.find(x=>Math.abs(sim.x-x)<CITY.roadHalf);
-  const nearSt=CITY.ST.find(z=>Math.abs(sim.z-z)<CITY.roadHalf);
-  const atCross = nearAv!==undefined && nearSt!==undefined;
-  const movingZ=Math.abs(sim.vz)>Math.abs(sim.vx);
-  if(atCross && sim.speed>6){
-    const myRed = movingZ ? !avGreen : avGreen;   // on an avenue you travel in z
-    if(myRed && DELIVERY._lastCross!==nearAv+'_'+nearSt){
-      DELIVERY._lastCross=nearAv+'_'+nearSt;
-      DELIVERY.score=Math.max(0,DELIVERY.score-25); DELIVERY.wanted=Math.min(5,DELIVERY.wanted+1);
-      ddFlash('RAN A RED LIGHT! −25','bad'); audioHit(0.3);
-    }
-  } else if(!atCross){ DELIVERY._lastCross=null; }
-  $('#ddStars').textContent = DELIVERY.wanted?('★'.repeat(DELIVERY.wanted)):'—';
-  $('#ddWanted').style.opacity = DELIVERY.wanted?1:0.4;
   // ---- pickup / dropoff proximity ----
   const tgt = DELIVERY.phase==='pickup'?DELIVERY.pickup:DELIVERY.dropoff;
   if(tgt){
@@ -1964,21 +1899,32 @@ function finishDelivery(success){
 }
 function drawCityMinimap(){
   const cv=$('#minimap'); if(!cv)return; const x=cv.getContext('2d'), W=cv.width, H=cv.height;
-  x.clearRect(0,0,W,H); const b=CITY.bounds, sx=W/(b.maxX-b.minX), sz=H/(b.maxZ-b.minZ);
-  const X=wx=>(wx-b.minX)*sx, Z=wz=>(wz-b.minZ)*sz;
+  x.clearRect(0,0,W,H);
   x.fillStyle='rgba(10,13,22,.6)'; x.fillRect(0,0,W,H);
+  if(!sim) return;
+  // heading-up, player-centered map so it always matches where you're driving:
+  // forward = up the screen, your right = right of screen.
+  const px=sim.x, pz=sim.z, ch=Math.cos(sim.heading), sh=Math.sin(sim.heading);
+  const view=320;                              // world units shown across the minimap
+  const scale=Math.min(W,H)/view;
+  const SX=(wx,wz)=>{ const rx=wx-px, rz=wz-pz; return W/2 + (rx*ch - rz*sh)*scale; };
+  const SY=(wx,wz)=>{ const rx=wx-px, rz=wz-pz; return H/2 - (rx*sh + rz*ch)*scale; };
+  const b=CITY.bounds;
+  // roads
   x.strokeStyle='rgba(150,160,180,.5)'; x.lineWidth=3;
-  CITY.AV.forEach(ax=>{x.beginPath();x.moveTo(X(ax),0);x.lineTo(X(ax),H);x.stroke();});
-  CITY.ST.forEach(sz2=>{x.beginPath();x.moveTo(0,Z(sz2));x.lineTo(W,Z(sz2));x.stroke();});
+  CITY.AV.forEach(ax=>{x.beginPath();x.moveTo(SX(ax,b.minZ),SY(ax,b.minZ));x.lineTo(SX(ax,b.maxZ),SY(ax,b.maxZ));x.stroke();});
+  CITY.ST.forEach(sz=>{x.beginPath();x.moveTo(SX(b.minX,sz),SY(b.minX,sz));x.lineTo(SX(b.maxX,sz),SY(b.maxX,sz));x.stroke();});
+  // delivery target
   const tgt=DELIVERY.phase==='pickup'?DELIVERY.pickup:DELIVERY.dropoff;
   if(tgt){ x.fillStyle=DELIVERY.phase==='pickup'?'#35e07a':'#f4a300';
-    x.beginPath();x.arc(X(tgt.x),Z(tgt.z),7,0,TAU);x.fill(); }
-  if(DELIVERY.traffic) { x.fillStyle='#ff6a6a'; DELIVERY.traffic.forEach(c=>{x.fillRect(X(c.mesh.position.x)-2,Z(c.mesh.position.z)-2,4,4);}); }
-  // your car: a bright white dot with a dark ring so it always stands out
-  if(sim){ const cxp=X(sim.x), czp=Z(sim.z);
-    x.beginPath(); x.arc(cxp,czp,6.5,0,TAU);
-    x.fillStyle='#fff'; x.fill();
-    x.lineWidth=2.5; x.strokeStyle='#0a0d16'; x.stroke(); }
+    x.beginPath();x.arc(SX(tgt.x,tgt.z),SY(tgt.x,tgt.z),7,0,TAU);x.fill(); }
+  // traffic
+  if(DELIVERY.traffic){ x.fillStyle='#ff6a6a'; DELIVERY.traffic.forEach(c=>{const m=c.mesh.position;
+    x.fillRect(SX(m.x,m.z)-2,SY(m.x,m.z)-2,4,4);}); }
+  // your car: a bright white dot fixed at the centre (the map rotates around you)
+  x.beginPath(); x.arc(W/2,H/2,6.5,0,TAU);
+  x.fillStyle='#fff'; x.fill();
+  x.lineWidth=2.5; x.strokeStyle='#0a0d16'; x.stroke();
 }
 
 function buildTrack(scene, def){
