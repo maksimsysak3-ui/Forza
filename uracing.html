@@ -200,12 +200,30 @@
     mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M9 11a3 3 0 100-6 3 3 0 000 6zM3 20c0-3 3-5 6-5s6 2 6 5M17 14c2 0 4 1.5 4 4' fill='none' stroke='black' stroke-width='2'/%3E%3C/svg%3E")}
   .sbi-t{-webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 2l3 6 6 1-4.5 4.5L18 20l-6-3-6 3 1.5-6.5L3 9l6-1z' fill='none' stroke='black' stroke-width='2'/%3E%3C/svg%3E");
     mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 2l3 6 6 1-4.5 4.5L18 20l-6-3-6 3 1.5-6.5L3 9l6-1z' fill='none' stroke='black' stroke-width='2'/%3E%3C/svg%3E")}
-  .ch-soon{margin-top:18px;padding:40px 24px;text-align:center;border-radius:16px;
-    background:linear-gradient(180deg,rgba(20,25,42,.6),rgba(11,15,26,.6));
-    border:1px dashed rgba(120,140,255,.22)}
-  .ch-soon-i{font-size:42px;margin-bottom:10px}
-  .ch-soon-t{font-size:20px;font-weight:800;margin-bottom:8px}
-  .ch-soon-s{font-size:13px;color:#8a96c2;max-width:440px;margin:0 auto;line-height:1.6}
+  .ch-unlock{margin-bottom:16px;background:linear-gradient(180deg,rgba(20,25,42,.6),rgba(11,15,26,.6));
+    border:1px solid rgba(120,140,255,.15);border-radius:12px;padding:12px 16px}
+  .ch-unlock-head{display:flex;justify-content:space-between;font-size:11px;letter-spacing:.14em;
+    text-transform:uppercase;color:#9aa6d0;margin-bottom:8px}
+  .ch-unlock-head b{color:#ffd24a}
+  .ch-unlock-bar{height:8px;border-radius:5px;background:rgba(120,140,255,.14);overflow:hidden}
+  .ch-unlock-bar i{display:block;height:100%;background:linear-gradient(90deg,#ffb02e,#ff5a2a);transition:width .4s}
+  .ch-group-h{font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:#8a96c2;margin:16px 0 8px}
+  .ch-list{display:flex;flex-direction:column;gap:9px}
+  .ch-card{display:flex;align-items:center;gap:14px;padding:13px 15px;border-radius:13px;
+    background:linear-gradient(180deg,rgba(22,28,46,.7),rgba(12,16,28,.7));
+    border:1px solid rgba(120,140,255,.15)}
+  .ch-card.done{border-color:rgba(60,200,120,.4)}
+  .ch-type{font-size:9px;font-weight:800;letter-spacing:.12em;color:#0b0e16;background:#7da0ff;
+    padding:3px 8px;border-radius:5px;flex:0 0 auto}
+  .ch-card.done .ch-type{background:#2fb866}
+  .ch-main{flex:1;min-width:0}
+  .ch-name{font-weight:800;font-size:15px}
+  .ch-desc{font-size:12px;color:#9aa6d0;margin-top:2px}
+  .ch-rew{font-size:11px;color:#ffd24a;margin-top:5px;letter-spacing:.02em}
+  .ch-go{cursor:pointer;border:none;padding:10px 18px;border-radius:9px;font-weight:800;font-size:12px;
+    letter-spacing:.1em;color:#fff;background:linear-gradient(180deg,#ff5a2a,#c1380d);flex:0 0 auto}
+  .ch-go:hover{filter:brightness(1.08)}
+  .ch-go.done{background:rgba(47,184,102,.22);color:#7fe0a6;cursor:default}
   /* staff tab */
   .staff-summary{display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap}
   .ss-card{flex:1;min-width:150px;background:linear-gradient(180deg,rgba(22,28,46,.7),rgba(12,16,28,.7));
@@ -805,11 +823,11 @@
         <div class="ss-card"><span>Cars Locked</span><b id="chLocked">1</b></div>
         <div class="ss-card"><span>Spare Parts</span><b id="chParts">0</b></div>
       </div>
-      <div class="ch-soon">
-        <div class="ch-soon-i">🏁</div>
-        <div class="ch-soon-t">Challenges are coming soon</div>
-        <div class="ch-soon-s">Beat target times and rival teams to unlock locked cars and collect spare parts. When a car is destroyed, spend a spare part to rebuild it.</div>
+      <div class="ch-unlock">
+        <div class="ch-unlock-head"><span>Next Car Unlock</span><b id="chUnlockPct">0%</b></div>
+        <div class="ch-unlock-bar"><i id="chUnlockFill" style="width:0%"></i></div>
       </div>
+      <div class="ch-list" id="chList"></div>
     </div>
 
     <!-- STAFF tab -->
@@ -2998,6 +3016,29 @@ function buildChallengesTab(){
   $('#chOwned').textContent=owned;
   $('#chLocked').textContent=Math.max(0,CAR_ORDER.length-owned);
   $('#chParts').textContent=GAME.team.spares||0;
+  const pct=Math.round(((GAME.team.unlockPts||0)%UNLOCK_COST)/UNLOCK_COST*100);
+  $('#chUnlockPct').textContent=(CAR_ORDER.length-owned>0)?pct+'%':'All cars unlocked';
+  $('#chUnlockFill').style.width=(CAR_ORDER.length-owned>0?pct:100)+'%';
+  const host=$('#chList'); host.innerHTML='';
+  ['kart1','kart2','kart3'].forEach(tk=>{
+    const h=document.createElement('div'); h.className='ch-group-h';
+    h.textContent=(TRACKS[tk]?TRACKS[tk].name:tk)+' · '+(TRACKS[tk]?TRACKS[tk].blurb:'');
+    host.appendChild(h);
+    CHALLENGES.filter(c=>c.track===tk).forEach(ch=>{
+      const done=chDone(ch.id);
+      const r=ch.reward||{}, rew=[];
+      if(r.money)rew.push(fmtMoney(r.money)); if(r.rp)rew.push(r.rp+' RP');
+      if(r.spares)rew.push(r.spares+' spare'+(r.spares>1?'s':''));
+      const card=document.createElement('div'); card.className='ch-card'+(done?' done':'');
+      card.innerHTML=`<span class="ch-type">${CH_TYPE[ch.type]||ch.type}</span>
+        <div class="ch-main"><div class="ch-name">${ch.title}</div>
+          <div class="ch-desc">${ch.desc}</div>
+          <div class="ch-rew">Reward: ${rew.join(' · ')} · +${ch.unlock}% unlock</div></div>
+        <button class="ch-go${done?' done':''}">${done?'✓ DONE':'START'}</button>`;
+      if(!done) card.querySelector('.ch-go').onclick=()=>startChallenge(ch);
+      host.appendChild(card);
+    });
+  });
 }
 function buildStaffTab(){
   ensureEconomy(GAME.team);
@@ -3071,6 +3112,55 @@ function trackOutlineSVG(pts){
 }
 
 /* season calendar — Nürburgring uses the embedded cinematic art + real outline */
+/* ---- kart challenges: complete to earn money / RP / spare parts and unlock cars ---- */
+const CHALLENGES=[
+  {id:'k1a',track:'kart1',type:'timetrial',title:'Shakedown',desc:'Set a clean lap under 0:40',target:40,reward:{money:250000},unlock:15},
+  {id:'k1b',track:'kart1',type:'clean',  title:'Cone Slalom',desc:'Complete a full lap without clipping a cone',reward:{rp:6},unlock:20},
+  {id:'k1c',track:'kart1',type:'beatai', title:'Club Race',  desc:'Beat 2 AI karts over 2 laps',laps:2,ais:2,pos:1,reward:{spares:1},unlock:25},
+  {id:'k2a',track:'kart2',type:'timetrial',title:'Tightrope', desc:'Set a lap under 0:38 on The Needle',target:38,reward:{money:300000},unlock:15},
+  {id:'k2b',track:'kart2',type:'beattime',title:'Precision Run',desc:'Beat the 0:34 benchmark lap',target:34,reward:{rp:8},unlock:25},
+  {id:'k2c',track:'kart2',type:'beatai', title:'Needle Duel', desc:'Beat 3 AI karts over 2 laps',laps:2,ais:3,pos:1,reward:{spares:1},unlock:30},
+  {id:'k3a',track:'kart3',type:'timetrial',title:'Altitude',  desc:'Set a lap under 0:42 in the Dome',target:42,reward:{money:350000},unlock:15},
+  {id:'k3b',track:'kart3',type:'beatai', title:'Dome Showdown',desc:'Beat 4 AI karts over 3 laps',laps:3,ais:4,pos:1,reward:{spares:2},unlock:35},
+  {id:'k3c',track:'kart3',type:'beattime',title:'King of the Dome',desc:'Beat the 0:38 benchmark lap',target:38,reward:{money:500000,rp:10},unlock:40},
+];
+const CH_TYPE={timetrial:'TIME TRIAL',beattime:'BEAT THE TIME',beatai:'BEAT THE AI',clean:'CLEAN LAP'};
+const UNLOCK_COST=100;
+function chDone(id){ return (GAME.team.challenges||[]).includes(id); }
+function startChallenge(ch){
+  activeChallenge=ch; activeChallenge._won=false;
+  forceCar='gokart';
+  if(ch.type==='beatai') startRace(ch.track,'race',ch.laps||2,ch.ais||2);
+  else startRace(ch.track,'solo',(ch.type==='clean'?2:3),0);
+}
+function challengeWin(){
+  const ch=activeChallenge; if(!ch||ch._won)return; ch._won=true;
+  completeChallenge(ch); flash('CHALLENGE PASSED'); raceState='finished';
+  setTimeout(()=>exitRace(),2400);
+}
+function challengeFail(){
+  const ch=activeChallenge; if(!ch||ch._won)return; ch._won=true;
+  flash('CHALLENGE FAILED'); raceState='finished'; toast('Not this time — give it another go');
+  setTimeout(()=>exitRace(),2200);
+}
+if(location.hash==='#debug')setTimeout(()=>{window.__completeChallenge=completeChallenge;window.__CHALLENGES=CHALLENGES;},0);
+function completeChallenge(ch){
+  ensureEconomy(GAME.team);
+  if(chDone(ch.id)){ toast('Already completed — nice lap though'); return; }
+  GAME.team.challenges=GAME.team.challenges||[]; GAME.team.challenges.push(ch.id);
+  const r=ch.reward||{}, parts=[];
+  if(r.money){GAME.team.money+=r.money;parts.push(fmtMoney(r.money));}
+  if(r.rp){GAME.team.rp+=r.rp;parts.push(r.rp+' RP');}
+  if(r.spares){GAME.team.spares=(GAME.team.spares||0)+r.spares;parts.push(r.spares+' spare'+(r.spares>1?'s':''));}
+  GAME.team.unlockPts=(GAME.team.unlockPts||0)+(ch.unlock||0);
+  while(GAME.team.unlockPts>=UNLOCK_COST){
+    const locked=CAR_ORDER.find(k=>!(GAME.team.owned||[]).includes(k));
+    if(!locked)break; GAME.team.unlockPts-=UNLOCK_COST; GAME.team.owned.push(locked);
+    setTimeout(()=>toast('🏆 NEW CAR UNLOCKED — '+CARS[locked].name),1200);
+  }
+  writeSave({team:GAME.team});
+  toast('Challenge passed! +'+(parts.join(' · ')||'progress'));
+}
 const RACES=[
   {name:'Nürburgring',loc:'Germany',rd:'RD 1',len:'5.1 km',turns:16,cls:'GT',art:CINEMATIC,track:'nurburgring',pts:TRACK_PTS,play:true},
   {name:'Buenos Aires',loc:'Argentina',rd:'RD 2',len:'4.7 km',turns:15,cls:'GT',track:'buenosaires',pts:BA_PTS,play:true},
@@ -3137,6 +3227,9 @@ function ensureEconomy(team){
   if(!team.staff)team.staff=rollStaff();
   if(!team.owned)team.owned=[team.car];        // ownership: start with the chosen car
   if(team.owned.indexOf(team.car)<0)team.car=team.owned[0];
+  if(!team.challenges)team.challenges=[];
+  if(team.spares==null)team.spares=0;
+  if(team.unlockPts==null)team.unlockPts=0;
   if(!team.dev){team.dev={};}
   PARTS.forEach(p=>{ if(!team.dev[p.key]) team.dev[p.key]={r:0,l:0}; });
   return team;
@@ -3505,6 +3598,7 @@ let lapTarget=5, fuelMax=20, turboOn=false;
 let camPos=new THREE.Vector3(), camLook=new THREE.Vector3();
 
 let raceTrackKey=null, raceMode='solo', ais=[];
+let forceCar=null, activeChallenge=null;
 const AI_TUNE={top:1.08,accel:1.16,brake:1.06,grip:1.08,steer:1.02};   // strong rival
 const AI_COLORS=[['#e8e8ee','#ff3b3b','2','R'],['#ffd24a','#101216','5','K'],
   ['#1aa7ff','#ffffff','9','V'],['#1ec96b','#06301c','3','M'],['#9b51e0','#ffffff','11','X']];
@@ -3530,10 +3624,12 @@ function startRace(trackKey,mode,laps,numAIs,gridOrder){
   $('#hud').classList.add('show');
   document.getElementById('hud').classList.toggle('vsai',aiCount>0);
   // move the ONE shared car into the race scene (no second mesh built)
-  raceCar=getCar(GAME.team);race.scene.add(raceCar.root);
+  // challenges race a rented kart without touching the player's owned car
+  const raceTeam = forceCar ? Object.assign({},GAME.team,{car:forceCar}) : GAME.team;
+  raceCar=getCar(raceTeam);race.scene.add(raceCar.root);
   fpView=!!raceCar.isKart;            // karts default to first-person; toggle with C
   document.getElementById('hud').classList.toggle('kart',!!raceCar.isKart);
-  TUNE=computeTune(GAME.team);          // car feel depends on installed upgrades
+  TUNE=computeTune(raceTeam);          // car feel depends on installed upgrades
   sim=new CarSim();sim.reset(8);sim.tune=TUNE;
   // ---- AI field (1..5) ----
   clearAIs();
@@ -3578,6 +3674,7 @@ function startRace(trackKey,mode,laps,numAIs,gridOrder){
   // place camera behind
   const f=sim.fwd();camPos.set(sim.x-f[0]*9,5,sim.z-f[1]*9);
   if(TRACK._obstacles) TRACK._obstacles.forEach(o=>{o.hit=false; if(o.mesh){o.mesh.rotation.z=0;}});
+  sim._lapClean=true; sim._dmgAtLapStart=0;
   initSkid(race.scene);
   initAudio();
   flash('3');
@@ -3722,8 +3819,10 @@ addEventListener('keydown',e=>{ if(_cineActive && (e.code==='Space'||e.code==='E
 
 function exitRace(){
   raceState='idle';audioSilence();
-  // save race count
-  if(GAME.team){GAME.team.races=(GAME.team.races||0)+1;writeSave({team:GAME.team});}
+  const wasChallenge=!!activeChallenge;
+  forceCar=null; activeChallenge=null;     // drop the rented kart / challenge context
+  // save race count (challenges don't count as championship races)
+  if(GAME.team && !wasChallenge){GAME.team.races=(GAME.team.races||0)+1;writeSave({team:GAME.team});}
   enterGarage();
 }
 
@@ -3772,6 +3871,11 @@ function updateDamageHud(){
   if(box)box.style.borderColor = sim.damage>70?'rgba(255,80,80,.8)':sim.damage>35?'rgba(255,190,80,.6)':'rgba(130,150,255,.2)';
 }
 function destroyPlayerCar(){
+  if(activeChallenge){ // rented kart — fail the challenge, keep your garage intact
+    raceState='finished'; flash('KART WRECKED');
+    setTimeout(()=>{ activeChallenge=null; forceCar=null; exitRace(); },1800);
+    return;
+  }
   const t=GAME.team; const wreck=t.car;
   t.owned=(t.owned||[wreck]).filter(k=>k!==wreck);
   writeSave({team:t});
@@ -3993,14 +4097,26 @@ function raceUpdate(dt){
         writeSave({team:GAME.team});
         toast('New best lap  '+fmtTime(lt));
       }
+      // ---- challenge goal checks on lap completion ----
+      if(activeChallenge && !activeChallenge._won){
+        const ch=activeChallenge, clean=sim._lapClean!==false;
+        if(ch.type==='timetrial' && lt<=ch.target && clean){ challengeWin(); return; }
+        if(ch.type==='beattime' && lt<=ch.target){ challengeWin(); return; }
+        if(ch.type==='clean' && clean){ challengeWin(); return; }
+      }
       lap++;lapStart=raceClock;secStartClock=raceClock;curSec=secOf(0);
       curBySeg=new Float32Array(N).fill(-1);
+      sim._lapClean=true; sim._dmgAtLapStart=sim.damage;     // fresh clean-lap tracking
       if(raceMode==='quali'){
         // lap 1 = warm-up out-lap; lap 2 = flying hot-lap that sets the time
         if(lap===2){ flash('FLYING LAP'); }
         else { raceState='finished'; qualiFinish(lt); }
       }
       else if(lap>lapTarget){
+        if(activeChallenge && activeChallenge.type==='beatai'){
+          if((sim._racePos||9)<=activeChallenge.pos) challengeWin(); else challengeFail();
+          return;
+        }
         const fin=ais.length?(' · P'+(sim._racePos||1)+'/'+(sim._raceTotal||1)):'';
         flash('FINISH'+fin);raceState='finished';
         if(ais.length)toast(sim._racePos===1?'Victory! You won the race':'Finished P'+sim._racePos+' of '+sim._raceTotal);
@@ -4044,6 +4160,7 @@ function raceUpdate(dt){
   } else { dEl.textContent='';dEl.className='ht-delta'; }
   drawMinimap();
   updateDamageHud();
+  if(sim.damage > (sim._dmgAtLapStart||0)+0.5) sim._lapClean=false;   // a barrier knock ends a clean lap
   if(sim.damage>=100 && raceState==='running'){ destroyPlayerCar(); }
 
   // audio
@@ -4055,6 +4172,7 @@ function raceUpdate(dt){
       const d=Math.hypot(sim.x-o.x,sim.z-o.z);
       if(d<1.0 && !o.hit){
         o.hit=true; sim.vx*=0.55; sim.vz*=0.55; camShake(0.4); audioHit(0.25);
+        sim._lapClean=false;
         if(o.mesh){ o.mesh.rotation.z=1.3; o.mesh.position.y-=0.3; }
         toast('Cone! Keep it clean');
       }
