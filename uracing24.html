@@ -1550,11 +1550,50 @@ function makeLiveryTexture(primary, accent, number, pattern, maskKey){
   // overlay the model's dark detail (windows/grille/trim) from its baked texture,
   // so new cars get black glass while the body stays fully recolorable
   if(maskKey && typeof CAR_MASK!=='undefined' && CAR_MASK[maskKey]){
-    x.drawImage(CAR_MASK[maskKey],0,0,S,S);
+    x.imageSmoothingEnabled=false; x.drawImage(CAR_MASK[maskKey],0,0,S,S); x.imageSmoothingEnabled=true;
   }
   const t=new THREE.CanvasTexture(c);t.encoding=THREE.sRGBEncoding;t.anisotropy=4;
   t.flipY=false; // model UVs are gl-style
   return t;
+}
+
+/* ----- RALLY livery: fixed white base, blue+red stripes, sponsor-heavy ----- */
+function makeRallyLivery(maskKey){
+  const S=1024,c=cvs(S,S),x=c.getContext('2d');
+  x.fillStyle='#f5f7f9';x.fillRect(0,0,S,S);                 // white base
+  // big diagonal blue + red stripes
+  x.save();x.translate(S/2,S/2);x.rotate(-Math.PI/10);x.translate(-S/2,-S/2);
+  x.fillStyle='#15489e';x.fillRect(-S,S*0.30,S*3,S*0.11);
+  x.fillStyle='#d8202a';x.fillRect(-S,S*0.42,S*3,S*0.07);
+  x.fillStyle='rgba(0,0,0,.12)';x.fillRect(-S,S*0.50,S*3,S*0.012);
+  x.restore();
+  // checkered band
+  const cw=S/16;
+  for(let i=0;i<S;i+=cw)for(let k=0;k<2;k++){ x.fillStyle=((i/cw+k)%2)?'#11141b':'#f5f7f9'; x.fillRect(i,S*0.71+k*S*0.028,cw,S*0.028); }
+  // soft 3D shade
+  let g=x.createLinearGradient(0,0,0,S);g.addColorStop(0,'rgba(255,255,255,.18)');g.addColorStop(.5,'rgba(0,0,0,0)');g.addColorStop(1,'rgba(0,0,0,.22)');
+  x.fillStyle=g;x.fillRect(0,0,S,S);
+  // sponsor decals (lots of them)
+  const SP=[['NITRO','#d8202a'],['APEX','#15489e'],['VOLT','#111418'],['SUMMIT','#0a7d3a'],
+            ['TURBO','#d8202a'],['DELTA','#15489e'],['IRONCLAD','#111418'],['RALLYE','#d8202a'],
+            ['MOTOR8','#15489e'],['BLAZE','#e07a00'],['PISTON','#111418'],['RACEFUEL','#0a7d3a']];
+  x.textAlign='center';x.textBaseline='middle';
+  SP.forEach((s,i)=>{ const cx=(0.13+(i%4)*0.25)*S, cy=(0.085+Math.floor(i/4)*0.07)*S, w=S*0.18, h=S*0.05;
+    x.fillStyle='#fff';x.fillRect(cx-w/2,cy-h/2,w,h);
+    x.strokeStyle=s[1];x.lineWidth=2.4;x.strokeRect(cx-w/2,cy-h/2,w,h);
+    x.fillStyle=s[1];x.font='800 '+(h*0.58)+'px Arial';x.fillText(s[0],cx,cy); });
+  SP.slice(0,8).forEach((s,i)=>{ const cx=(0.16+(i%4)*0.24)*S, cy=(0.56+Math.floor(i/4)*0.06)*S;
+    x.fillStyle=s[1];x.font='800 '+(S*0.028)+'px Arial';x.fillText(s[0],cx,cy); });
+  // rally door number roundels
+  function num(cx,cy,r){ x.beginPath();x.arc(cx,cy,r,0,TAU);x.fillStyle='#fff';x.fill();
+    x.lineWidth=r*0.14;x.strokeStyle='#d8202a';x.stroke();
+    x.fillStyle='#11141b';x.font='900 '+(r*1.3)+'px Arial';x.fillText('7',cx,cy+r*0.05); }
+  num(S*0.30,S*0.34,S*0.075); num(S*0.70,S*0.62,S*0.07);
+  // window/dark-detail mask so glass is black
+  if(maskKey && typeof CAR_MASK!=='undefined' && CAR_MASK[maskKey]){
+    x.imageSmoothingEnabled=false; x.drawImage(CAR_MASK[maskKey],0,0,S,S); x.imageSmoothingEnabled=true;
+  }
+  const t=new THREE.CanvasTexture(c);t.encoding=THREE.sRGBEncoding;t.anisotropy=4;t.flipY=false;return t;
 }
 
 // cached shared textures
@@ -1649,8 +1688,12 @@ const CAR_MASK={};
         const out=cvs(S,S), ox=out.getContext('2d');
         const od=ox.createImageData(S,S), q=od.data;
         for(let p=0;p<d.length;p+=4){
-          const lum=0.299*d[p]+0.587*d[p+1]+0.114*d[p+2];
-          if(lum<58){ q[p]=10;q[p+1]=11;q[p+2]=14;q[p+3]=255; } else { q[p+3]=0; }
+          const r=d[p],gg=d[p+1],bl=d[p+2];
+          const lum=0.299*r+0.587*gg+0.114*bl;
+          // glass/trim are dark OR dark-bluish-grey; capture both so no paint
+          // bleeds through the windows, and paint them solid black
+          const glassy=lum<110 && Math.max(r,gg,bl)-Math.min(r,gg,bl)<46;
+          if(lum<90 || glassy){ q[p]=6;q[p+1]=7;q[p+2]=10;q[p+3]=255; } else { q[p+3]=0; }
         }
         ox.putImageData(od,0,0); CAR_MASK[key]=out;
         // refresh any car currently showing this model so the glass goes black
@@ -1690,6 +1733,7 @@ function makeCar(team){
   const isKart=!!(CARS[carKey]&&CARS[carKey].kart);
   const isBubble=!!(CARS[carKey]&&CARS[carKey].bubble);
   const cleanUV=!!(CARS[carKey]&&CARS[carKey].cleanUV);   // new models: plain glossy paint
+  const isRally=!!(CARS[carKey]&&CARS[carKey].rally);
   const plain=isKart||isBubble;
   const root=new THREE.Group();
   root.scale.setScalar(isKart?1.7:(isBubble?1.4:1.15));     // kart small; bubble (delivery) a touch bigger; scale up for presence
@@ -1699,9 +1743,10 @@ function makeCar(team){
     bodyMat=new THREE.MeshStandardMaterial({color:new THREE.Color(isBubble?(CARS[carKey].color):team.color),
       metalness:.3,roughness:.45});
   }else{
-    // every car uses the same recolorable procedural livery (2 colours + decals);
-    // carKey enables the dark window/detail overlay for the new models
-    livery=makeLiveryTexture(team.color,team.accent,team.number,team.livery,carKey);
+    // rally car has a fixed sponsor-heavy white/blue/red livery; others use the
+    // recolorable procedural livery (carKey enables the dark window overlay)
+    if(isRally) livery=makeRallyLivery(carKey);
+    else livery=makeLiveryTexture(team.color,team.accent,team.number,team.livery,carKey);
     bodyMat=new THREE.MeshPhysicalMaterial({
       map:livery, color:0xffffff, metalness:.28, roughness:.5,
       clearcoat:.25, clearcoatRoughness:.4, envMapIntensity:0.18
@@ -1738,6 +1783,7 @@ function makeCar(team){
   root.userData.livery=livery; root.userData.carKey=carKey; root.userData.centers=G.centers;
   function setLivery(t){
     if(plain){ if(!isBubble) bodyMat.color.set(t.color); return; }
+    if(isRally) return;   // fixed rally livery, not recolorable
     const old=bodyMat.map;
     bodyMat.map=makeLiveryTexture(t.color,t.accent,t.number,t.livery,carKey);
     bodyMat.needsUpdate=true;
