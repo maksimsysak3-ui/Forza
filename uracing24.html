@@ -1500,12 +1500,16 @@ function tireTex(){
 
 /* ----- LIVERY: this is the editable part. Builds the car body texture
    from the team's colors + number, painted over the model's own UVs. ----- */
-function makeLiveryTexture(primary, accent, number, pattern){
+function makeLiveryTexture(primary, accent, number, pattern, clean){
   const S=1024,c=cvs(S,S),x=c.getContext('2d');
   // base
   x.fillStyle=primary;x.fillRect(0,0,S,S);
   // ---- livery pattern (accent geometry) ----
+  // `clean` cars (new models whose UVs are an arbitrary atlas, not the stock
+  // layout) get a plain glossy paint instead of decals that would land as
+  // random splotches — so every car reads as a consistent painted body.
   pattern=pattern||'Stripe';
+  if(!clean){
   if(pattern==='Stripe'){
     x.save();x.translate(S/2,S/2);x.rotate(-Math.PI/9);x.translate(-S/2,-S/2);
     x.fillStyle=accent;
@@ -1523,11 +1527,13 @@ function makeLiveryTexture(primary, accent, number, pattern){
   }else{ // Solid — just a thin centre pinstripe
     x.fillStyle=accent;x.fillRect(S*0.47,0,S*0.06,S);
   }
+  }
   // soft top-to-bottom shade so flat UV islands read as 3D (over the pattern)
   let g=x.createLinearGradient(0,0,0,S);
   g.addColorStop(0,'rgba(255,255,255,.16)');g.addColorStop(.5,'rgba(0,0,0,0)');
   g.addColorStop(1,'rgba(0,0,0,.28)');
   x.fillStyle=g;x.fillRect(0,0,S,S);
+  if(!clean){
   // carbon-ish lower band
   x.fillStyle='rgba(8,8,12,.45)';x.fillRect(0,S*0.78,S,S*0.22);
   for(let i=0;i<S;i+=8){for(let j=S*0.78|0;j<S;j+=8){
@@ -1544,6 +1550,7 @@ function makeLiveryTexture(primary, accent, number, pattern){
   // wordmark
   x.save();x.fillStyle='rgba(255,255,255,.9)';x.font='900 '+(S*0.05)+'px Arial';
   x.textAlign='center';x.fillText('URACING',S*0.5,S*0.16);x.restore();
+  }
   // gloss speckle
   for(let i=0;i<400;i++){x.fillStyle='rgba(255,255,255,'+(Math.random()*.05)+')';
     x.fillRect(Math.random()*S,Math.random()*S,2,2);}
@@ -1605,20 +1612,20 @@ const CARS={
     // mid-engine balance: strong straight-line speed with composed handling
     phys:{top:1.07,accel:1.10,brake:1.00,grip:1.00,steer:0.97},
     color:'#f2c200', accent:'#1a1d24',
-    spd:90, acc:88, hnd:80, price:1800000 },
+    spd:90, acc:88, hnd:80, price:1800000, cleanUV:true },
   supra:{ name:'Toyota Supra', sub:'MkV · GT', data:CAR6_DATA,
     phys:{top:1.04,accel:1.08,brake:1.00,grip:1.02,steer:1.00},
     color:'#ff6a00', accent:'#1a1d24',
-    spd:84, acc:86, hnd:84, price:1500000 },
+    spd:84, acc:86, hnd:84, price:1500000, cleanUV:true },
   viper:{ name:'Dodge Viper', sub:'V10 · GTS', data:CAR7_DATA,
     phys:{top:1.12,accel:1.14,brake:0.96,grip:0.92,steer:0.92},
     color:'#d11a1a', accent:'#ffffff',
-    spd:96, acc:92, hnd:72, price:2500000 },
+    spd:96, acc:92, hnd:72, price:2500000, cleanUV:true },
   m4:{ name:'BMW M4 GTS', sub:'Rally · Loose surface', data:CAR8_DATA, rally:true,
     // rally feel: lower grip, heavy/slow steering -> needs to be drifted
     phys:{top:0.96,accel:1.06,brake:1.02,grip:0.86,steer:0.82},
     color:'#f2f2f2', accent:'#d11a1a',
-    spd:80, acc:84, hnd:78 },
+    spd:80, acc:84, hnd:78, cleanUV:true },
 };
 // purchasable/unlockable roster (go-kart removed = challenge rental; m4 = rally car only)
 const CAR_ORDER=['f488','fordgt','vette','supra','viper'];
@@ -1646,6 +1653,7 @@ function makeCar(team){
   const G=geomsFor(carKey);
   const isKart=!!(CARS[carKey]&&CARS[carKey].kart);
   const isBubble=!!(CARS[carKey]&&CARS[carKey].bubble);
+  const cleanUV=!!(CARS[carKey]&&CARS[carKey].cleanUV);   // new models: plain glossy paint
   const plain=isKart||isBubble;
   const root=new THREE.Group();
   root.scale.setScalar(isKart?1.7:(isBubble?1.4:1.15));     // kart small; bubble (delivery) a touch bigger; scale up for presence
@@ -1655,7 +1663,7 @@ function makeCar(team){
     bodyMat=new THREE.MeshStandardMaterial({color:new THREE.Color(isBubble?(CARS[carKey].color):team.color),
       metalness:.3,roughness:.45});
   }else{
-    livery=makeLiveryTexture(team.color,team.accent,team.number,team.livery);
+    livery=makeLiveryTexture(team.color,team.accent,team.number,team.livery,cleanUV);
     bodyMat=new THREE.MeshPhysicalMaterial({
       map:livery, color:0xffffff, metalness:.28, roughness:.5,
       clearcoat:.25, clearcoatRoughness:.4, envMapIntensity:0.18
@@ -1693,7 +1701,7 @@ function makeCar(team){
   function setLivery(t){
     if(plain){ if(!isBubble) bodyMat.color.set(t.color); return; }
     const old=bodyMat.map;
-    bodyMat.map=makeLiveryTexture(t.color,t.accent,t.number,t.livery);
+    bodyMat.map=makeLiveryTexture(t.color,t.accent,t.number,t.livery,cleanUV);
     bodyMat.needsUpdate=true;
     if(old&&old.dispose)old.dispose();
   }
