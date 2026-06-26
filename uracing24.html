@@ -1185,6 +1185,25 @@ const RA_PTS=[
  [943,508],[939,548],[947,586],[962,627],[968,664],[969,704],[956,726],[937,743],[855,747],[748,746],
  [654,747],[584,745]];
 
+// player-supplied calendar circuits
+const CHUCK_PTS=[
+ [732,597],[846,515],[895,479],[915,462],[914,431],[896,408],[870,385],[871,353],
+ [892,326],[879,266],[846,154],[821,93],[797,75],[771,76],[743,95],[728,121],
+ [720,143],[739,193],[761,246],[778,284],[759,327],[732,351],[700,367],[661,361],
+ [637,341],[621,269],[608,142],[596,73],[563,58],[512,59],[465,58],[443,86],
+ [443,105],[413,139],[386,185],[328,260],[282,321],[255,332],[229,350],[228,373],
+ [241,404],[266,413],[308,406],[440,350],[463,363],[485,396],[498,426],[517,465],
+ [517,493],[490,518],[442,574],[387,628],[375,661],[384,696],[409,713],[441,720],
+ [489,697],[560,636],[587,639],[617,650],[645,653],[693,621]];
+const BEDFORD_PTS=[
+ [500,532],[420,551],[353,558],[312,564],[269,562],[258,552],[258,533],[279,529],
+ [304,502],[323,459],[396,398],[419,376],[421,342],[423,307],[452,281],[474,287],
+ [488,273],[535,253],[558,250],[581,259],[595,263],[592,279],[548,313],[502,342],
+ [482,357],[483,384],[487,449],[494,465],[521,467],[604,403],[695,336],[713,321],
+ [711,295],[687,288],[658,279],[652,260],[691,249],[779,219],[800,239],[820,272],
+ [813,308],[797,349],[801,365],[828,382],[883,374],[892,388],[883,401],[843,415],
+ [755,455],[697,474],[676,478],[669,504],[613,517],[551,525]];
+
 // ---- indoor go-kart circuits ----
 const KART1_PTS=[
  [720,519],[549,479],[338,431],[228,404],[197,378],[218,339],[208,309],[219,286],[255,264],[290,265],
@@ -1242,6 +1261,20 @@ const TRACKS = {
     // classic American wood-frame bleachers, blue roof, stars-and-stripes fascia
     stand:{ roof:'#2a3f7a', frame:'#9a7a4e', tiers:5, W:32, roofType:'bleacher',
             banner:['#b22234','#ffffff','#3c3b6e'], crowd:['#c4452f','#dfe3ea','#3a6cc4','#e6c84a','#cfd4dd'] } },
+  chuckwalla:{ name:'Chuckwalla Valley', country:'United States', color:'#e08a2a',
+    pts:CHUCK_PTS, scale:1.6, env:'grassland',
+    sponsors:[ {name:'DESERT FUEL', color:'#e08a2a'},
+               {name:'MOJAVE', color:'#c9542a'},
+               {name:'SUNBELT', color:'#f4c20d'} ],
+    stand:{ roof:'#caa23a', frame:'#9a7a4e', tiers:5, W:30, roofType:'open',
+            banner:['#e08a2a','#f4c20d','#101317'], crowd:['#e6c84a','#dfe3ea','#c4452f','#e08a2a','#cfd4dd'] } },
+  bedford:{ name:'Bedford Autodrome', country:'United Kingdom', color:'#3b6cff',
+    pts:BEDFORD_PTS, scale:1.55, env:'grassland',
+    sponsors:[ {name:'ALBION', color:'#3b6cff'},
+               {name:'BRITPETROL', color:'#d11f2a'},
+               {name:'CROWN TYRES', color:'#eaeef5'} ],
+    stand:{ roof:'#26407a', frame:'#9aa0ab', tiers:5, W:30, roofType:'open',
+            banner:['#3b6cff','#ffffff','#d11f2a'], crowd:['#7cc0ee','#dfe3ea','#3a6cc4','#e6c84a','#cfd4dd'] } },
   // ---- indoor go-kart circuits: tight, tire-walled, no sponsors ----
   kart1:{ name:'Apex Indoor Arena', country:'Karting', color:'#ff7a00', kart:true,
     pts:KART1_PTS, scale:0.46, env:'indoor', half:4.6, gimmick:'obstacles',
@@ -4112,10 +4145,11 @@ const RACES=[
   {name:'Buenos Aires',loc:'Argentina',rd:'RD 2',len:'4.7 km',turns:15,cls:'GT',track:'buenosaires',pts:BA_PTS,play:true},
   {name:'Fuji Speedway',loc:'Japan',rd:'RD 3',len:'4.6 km',turns:16,cls:'GT',track:'fuji',pts:FUJI_PTS,play:true},
   {name:'Road America',loc:'United States',rd:'RD 4',len:'6.5 km',turns:14,cls:'GT',track:'roadamerica',pts:RA_PTS,play:true},
-  {name:'Silverstone',loc:'United Kingdom',rd:'RD 5',len:'5.9 km',turns:18,cls:'GT',play:false},
-  {name:'Suzuka',loc:'Japan',rd:'RD 4',len:'5.8 km',turns:17,cls:'GT',play:false},
-  {name:'Spa',loc:'Belgium',rd:'RD 5',len:'7.0 km',turns:19,cls:'GT',play:false},
-  {name:'Monza',loc:'Italy',rd:'RD 6',len:'5.8 km',turns:11,cls:'GT',play:false},
+  {name:'Chuckwalla Valley',loc:'United States',rd:'RD 5',len:'4.4 km',turns:17,cls:'GT',track:'chuckwalla',pts:CHUCK_PTS,play:true},
+  {name:'Bedford Autodrome',loc:'United Kingdom',rd:'RD 6',len:'3.9 km',turns:19,cls:'GT',track:'bedford',pts:BEDFORD_PTS,play:true},
+  {name:'Suzuka',loc:'Japan',rd:'RD 7',len:'5.8 km',turns:17,cls:'GT',play:false},
+  {name:'Spa',loc:'Belgium',rd:'RD 8',len:'7.0 km',turns:19,cls:'GT',play:false},
+  {name:'Monza',loc:'Italy',rd:'RD 9',len:'5.8 km',turns:11,cls:'GT',play:false},
 ];
 let calendarBuilt=false;
 function buildCalendar(){
