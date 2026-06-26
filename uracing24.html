@@ -4605,7 +4605,7 @@ let camPos=new THREE.Vector3(), camLook=new THREE.Vector3();
 
 let raceTrackKey=null, raceMode='solo', ais=[];
 let forceCar=null, activeChallenge=null;
-const AI_TUNE={top:1.08,accel:1.16,brake:1.06,grip:1.08,steer:1.02};   // strong rival
+const AI_TUNE={top:1.03,accel:1.14,brake:1.10,grip:1.06,steer:1.02};   // strong but controllable rival
 const AI_COLORS=[['#e8e8ee','#ff3b3b','2','R'],['#ffd24a','#101216','5','K'],
   ['#1aa7ff','#ffffff','9','V'],['#1ec96b','#06301c','3','M'],['#9b51e0','#ffffff','11','X']];
 const RIVALS=['Vortex GP','Blitz Racing','Nova Motorsport','Crimson Squadron','Atlas Racing'];
@@ -4635,7 +4635,9 @@ function startRace(trackKey,mode,laps,numAIs,gridOrder){
   lapTarget=laps||5;
   const aiCount=(raceMode==='solo')?0:Math.max(0,Math.min(5,numAIs|0));
   if(!race || raceTrackKey!==trackKey){ race=buildRace(trackKey); raceTrackKey=trackKey; }
-  if(location.hash==='#debug'){window.__race=race;window.__renderer=renderer;window.__THREE=THREE;}
+  if(location.hash==='#debug'){window.__race=race;window.__renderer=renderer;window.__THREE=THREE;
+    window.__telemetry=()=>({sim,ais,TRACK,raceState,countdown,raceClock});
+    window.__step=(dt,n)=>{for(let q=0;q<(n||1);q++)raceUpdate(dt||0.016);};}
   STATE='race';raceState='countdown';
   activeScene=race.scene;activeCam=race.cam;
   hideAllScreens();
@@ -4935,52 +4937,57 @@ function flash(txt){const f=$('#raceflash');f.textContent=txt;f.style.opacity='1
 function fmtTime(s){if(s==null)return '—';const m=Math.floor(s/60);const r=s-m*60;
   return m+':'+(r<10?'0':'')+r.toFixed(2);}
 
-/* ---- AI rival: follows the line, brakes properly for corners, races clean ---- */
+/* ---- AI rival: hugs the racing line, brakes early for corners, recovers if it runs wide ---- */
 function aiControl(ai,opp,dt){
   const C=TRACK.C,tan=TRACK.tan,nrmL=TRACK.nrmL,N=TRACK.N,HALF=TRACK.HALF;
   if(TRACK._segLen===undefined) TRACK._segLen=TRACK.curve.getLength()/N;
+  const segLen=TRACK._segLen||4;
   const aiTop=(ai.tune&&ai.tune.top)||AI_TUNE.top;
-  const segLen=TRACK._segLen, i=ai.seg, spd=ai.speed, topV=PHYS.topSpeed*aiTop;
+  const i=ai.seg, spd=ai.speed, topV=PHYS.topSpeed*aiTop;
+  const aiLat=(ai.x-C[i].x)*nrmL[i].x+(ai.z-C[i].z)*nrmL[i].z;
+
+  // ---- racing-line offset: small, only to pass a nearby rival, never near the edge ----
   let dseg=i-opp.seg; if(dseg>N/2)dseg-=N; if(dseg<-N/2)dseg+=N;   // + = ai ahead
   const dx=ai.x-opp.x, dz=ai.z-opp.z, dist=Math.hypot(dx,dz);
-  const aiLat=(ai.x-C[i].x)*nrmL[i].x+(ai.z-C[i].z)*nrmL[i].z;
   const oppLat=(opp.x-C[opp.seg].x)*nrmL[opp.seg].x+(opp.z-C[opp.seg].z)*nrmL[opp.seg].z;
-  // line: mostly the racing centre; offset to defend/attack/avoid
   let target=0;
-  if(dseg>0 && dseg<16 && dist<24)       target=clamp(oppLat*0.8,-HALF*0.55,HALF*0.55);
-  else if(dseg<0 && dseg>-18 && dist<28) target=-Math.sign(oppLat||1)*HALF*0.5;
-  if(dist<7 && Math.abs(dseg)<11) target=Math.sign(aiLat-oppLat||1)*Math.min(HALF*0.8,Math.abs(oppLat)+3.2);
-  target=clamp(target,-HALF*0.78,HALF*0.78);
-  ai.aiOffset=lerp(ai.aiOffset||0,target,1-Math.exp(-3*dt));
+  if(dseg<0 && dseg>-14 && dist<22) target=clamp(-Math.sign(oppLat||1)*HALF*0.42,-HALF*0.5,HALF*0.5);
+  ai.aiOffset=lerp(ai.aiOffset||0,target,1-Math.exp(-2.5*dt));
 
-  // ---- STEER toward a near lookahead point on the line (gain eases with speed) ----
-  const la=Math.max(5,Math.round(5+spd*0.55));
+  // ---- upcoming curvature over a moderate, speed-scaled braking window ----
+  const lookM=12+spd*1.3;                                 // ~ braking distance (m), grows gently
+  const lookN=Math.min(N-2,Math.max(6,Math.round(lookM/segLen)));
+  let curve=0;
+  for(let k=2;k<=lookN;k++){const a=tan[(i+k)%N],b=tan[(i+k-2+N)%N];curve+=Math.abs(a.x*b.z-a.z*b.x);}
+  const cornerSpeed=clamp(topV*(1-curve*0.55), 16, topV);   // brake for the turn, but keep racing pace
+
+  // ---- steer toward a lookahead point on the line (capped so it never aims past a corner) ----
+  const la=Math.round(clamp(4+spd*0.32, 4, 16));
   const ti=(i+la)%N, nl=nrmL[ti];
   const tx=C[ti].x+nl.x*ai.aiOffset, tz=C[ti].z+nl.z*ai.aiOffset;
   let dh=Math.atan2(tx-ai.x,tz-ai.z)-ai.heading;
   while(dh>Math.PI)dh-=TAU; while(dh<-Math.PI)dh+=TAU;
-  const steer=clamp(dh*(2.4-spd*0.014),-1,1);
+  let steer=clamp(dh*2.2,-1,1);
 
-  // ---- SPEED: brake for total heading change over the braking distance ----
-  const lookDist=8+spd*spd*0.045;                         // ~ braking distance (m)
-  const lookN=Math.min(N-2,Math.max(6,Math.round(lookDist/segLen)));
-  let curveAhead=0;
-  for(let k=2;k<=lookN;k++){const a=tan[(i+k)%N],b=tan[(i+k-2+N)%N];
-    curveAhead+=Math.abs(a.x*b.z-a.z*b.x);}              // ~ total upcoming turn (rad)
-  const cornerSpeed=clamp(topV*(1-curveAhead*0.78), 12, topV);   // brake harder for tight turns
-  let throttle=1,brake=0,steerOut=steer;
-  if(spd>cornerSpeed+1){ brake=clamp((spd-cornerSpeed)/10,0,1); throttle=0; }
-  else if(spd>cornerSpeed-3){ throttle=0.5; }            // coast near the limit
-  // running wide: stop attacking the offset and steer firmly back to the centre line
-  if(Math.abs(aiLat)>HALF*0.8){
-    const back=clamp(-aiLat/HALF,-1,1);
-    steerOut=clamp(steer*0.4 + back*1.0,-1,1);
-    throttle=Math.min(throttle,0.6); brake=0;
+  // ---- throttle / brake ----
+  let throttle=1,brake=0;
+  if(spd>cornerSpeed+0.5){ brake=clamp((spd-cornerSpeed)/8,0,1); throttle=0; }
+  else if(spd>cornerSpeed-3){ throttle=0.55; }
+
+  // ---- recovery: drifting toward the edge -> pull hard to the centre, ease off ----
+  if(Math.abs(aiLat)>HALF*0.62){
+    const back=clamp(-aiLat/HALF,-1.2,1.2);
+    steer=clamp(steer*0.35 + back,-1,1);
+    throttle=Math.min(throttle,0.5);
+    if(Math.abs(aiLat)>HALF) brake=Math.max(brake,0.25);
   }
-  // pinned against a wall (slow + off-line): crawl back onto the track instead of stalling
-  if(spd<5 && Math.abs(aiLat)>HALF*0.55){ throttle=0.85; brake=0; steerOut=clamp(-Math.sign(aiLat)*0.95,-1,1); }
-  if(dseg<0 && dseg>-6 && dist<5.5) throttle*=0.3;       // don't rear-end the player
-  return {throttle,brake,steer:steerOut,handbrake:false};
+  // ---- fully off the road (on grass): straighten back on at low throttle ----
+  if(ai.surf==='grass'){ const back=clamp(-aiLat/HALF,-1,1); steer=clamp(steer*0.3+back,-1,1); throttle=0.6; brake=0; }
+  // ---- crawling + off-line: get back onto the track instead of stalling ----
+  if(spd<5 && Math.abs(aiLat)>HALF*0.5){ throttle=0.9; brake=0; steer=clamp(-Math.sign(aiLat)*0.9,-1,1); }
+  // ---- don't rear-end the player ----
+  if(dseg<0 && dseg>-6 && dist<5.5){ throttle*=0.25; if(dist<3.5) brake=Math.max(brake,0.3); }
+  return {throttle,brake,steer,handbrake:false};
 }
 function prog(s){ if(s._lastSeg===undefined){s._lastSeg=s.seg;s._laps=0;}
   if(s._lastSeg>TRACK.N*0.7 && s.seg<TRACK.N*0.3)s._laps++;
@@ -5085,7 +5092,7 @@ function raceUpdate(dt){
   // ---- AI field (1..5) ----
   if(ais.length){
     for(const a of ais){
-      a.sim.update(dt, aiControl(a.sim,sim,dt));
+      const _ai=aiControl(a.sim,sim,dt); a.sim._in=_ai; a.sim.update(dt, _ai);
       a.car.root.position.set(a.sim.x, segY(a.sim.seg) + a.sim.kerbLift*0.10 + a.sim.bump*0.04, a.sim.z);
       a.car.root.rotation.y=a.sim.heading;
       a.car.root.rotation.z=-a.sim.steerVis*(a.sim._sp01||0)*0.04;
