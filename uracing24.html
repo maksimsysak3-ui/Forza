@@ -318,6 +318,27 @@
   #garage.show-tab .tab-back{display:block}
   .tabview{position:absolute;left:0;right:0;top:62px;bottom:0;z-index:3}
   .tabview.hidden{display:none !important}
+  /* 3D parking lot tab */
+  #tab-cars{pointer-events:auto;cursor:grab}
+  #tab-cars:active{cursor:grabbing}
+  .park-hint{position:absolute;top:10px;left:50%;transform:translateX(-50%);z-index:4;
+    background:rgba(8,10,16,.72);color:#cdd7ff;font-size:11px;letter-spacing:.06em;
+    padding:7px 14px;border-radius:20px;border:1px solid rgba(120,140,255,.2);pointer-events:none;white-space:nowrap}
+  .car-popup{position:absolute;z-index:5;min-width:210px;max-width:240px;pointer-events:none;display:none;
+    background:linear-gradient(180deg,rgba(16,20,34,.96),rgba(9,11,20,.97));border:1px solid rgba(120,140,255,.25);
+    border-left:3px solid #7da0ff;border-radius:12px;padding:12px 14px;box-shadow:0 14px 34px rgba(0,0,0,.55);color:#fff}
+  .car-popup .cp-name{font-size:16px;font-weight:800}
+  .car-popup .cp-sub{font-size:10.5px;color:#9aa6d0;margin:1px 0 8px}
+  .car-popup .cp-stat{display:flex;align-items:center;gap:8px;font-size:10px;color:#9aa6d0;margin:3px 0}
+  .car-popup .cp-stat span{width:58px;letter-spacing:.1em}
+  .car-popup .cp-bar{flex:1;height:6px;background:rgba(255,255,255,.1);border-radius:4px;overflow:hidden}
+  .car-popup .cp-bar i{display:block;height:100%;background:linear-gradient(90deg,#5a7cff,#7df0a0)}
+  .car-popup .cp-tag{margin-top:9px;font-size:12px;font-weight:800;letter-spacing:.04em}
+  .car-popup .cp-tag.owned{color:#5ef08a}.car-popup .cp-tag.buy{color:#ffd24a}
+  .car-popup .cp-tag.locked{color:#9aa6d0}.car-popup .cp-tag.progress{color:#7da0ff}
+  .park-livery{position:absolute;bottom:20px;left:50%;transform:translateX(-50%);z-index:5;
+    background:linear-gradient(180deg,rgba(16,20,34,.95),rgba(9,11,20,.96));border:1px solid rgba(120,140,255,.22);
+    border-radius:14px;padding:12px 16px}
   .panelview{overflow:auto;padding-top:18px;background:radial-gradient(120% 120% at 70% 10%,rgba(18,24,42,.985),rgba(6,8,14,.997))}
   /* big rectangle nav tiles on the garage hub */
   .hub-tiles{position:absolute;left:50%;bottom:30px;transform:translateX(-50%);z-index:4;
@@ -937,12 +958,11 @@
     </div>
 
     <!-- CARS & LIVERY tab -->
-    <div class="tabview panelview hidden" id="tab-cars">
-      <div class="tab-head"><h2>Cars &amp; Livery</h2>
-        <div class="tab-sub">Pick your model — each drives differently — and set its livery</div></div>
-      <div class="car-grid" id="carGrid"></div>
-      <div class="livery-bar">
-        <div class="lb-k">Livery presets</div>
+    <div class="tabview hidden" id="tab-cars">
+      <div class="park-hint">PARKING LOT · drag to look · W/A/S/D or arrows to move · hover a car for details · click a car you own to set its livery</div>
+      <div class="car-popup" id="carPopup"></div>
+      <div class="livery-bar park-livery" id="liveryBar" style="display:none">
+        <div class="lb-k">Livery presets — <b id="liveryFor"></b></div>
         <div class="lb-swatches" id="liverySwatches"></div>
       </div>
     </div>
@@ -1570,7 +1590,7 @@ const CARS={
   fordgt:{ name:'Ford GT', sub:'Le Mans · GTE', data:CAR2_DATA,
     phys:{top:1.10,accel:1.12,brake:0.97,grip:0.93,steer:0.94},
     color:'#1769c4', accent:'#e8eef6',
-    spd:94, acc:90, hnd:74 },
+    spd:94, acc:90, hnd:74, price:1200000 },
   gokart:{ name:'Go-Kart', sub:'Indoor · Sprint', data:CAR3_DATA, kart:true,
     // tiny, twitchy: low top speed, snappy accel, but heavy/tough steering on a thin track
     phys:{top:0.52,accel:1.25,brake:1.15,grip:1.18,steer:0.72},
@@ -1585,15 +1605,15 @@ const CARS={
     // mid-engine balance: strong straight-line speed with composed handling
     phys:{top:1.07,accel:1.10,brake:1.00,grip:1.00,steer:0.97},
     color:'#f2c200', accent:'#1a1d24',
-    spd:90, acc:88, hnd:80 },
+    spd:90, acc:88, hnd:80, price:1800000 },
   supra:{ name:'Toyota Supra', sub:'MkV · GT', data:CAR6_DATA,
     phys:{top:1.04,accel:1.08,brake:1.00,grip:1.02,steer:1.00},
     color:'#ff6a00', accent:'#1a1d24',
-    spd:84, acc:86, hnd:84 },
+    spd:84, acc:86, hnd:84, price:1500000 },
   viper:{ name:'Dodge Viper', sub:'V10 · GTS', data:CAR7_DATA,
     phys:{top:1.12,accel:1.14,brake:0.96,grip:0.92,steer:0.92},
     color:'#d11a1a', accent:'#ffffff',
-    spd:96, acc:92, hnd:72 },
+    spd:96, acc:92, hnd:72, price:2500000 },
   m4:{ name:'BMW M4 GTS', sub:'Rally · Loose surface', data:CAR8_DATA, rally:true,
     // rally feel: lower grip, heavy/slow steering -> needs to be drifted
     phys:{top:0.96,accel:1.06,brake:1.02,grip:0.86,steer:0.82},
@@ -3961,6 +3981,8 @@ function setTab(name){
   document.getElementById('garage').classList.toggle('show-tab', name!=='garage');
   // turntable only on Garage; dev shows the car static in the work bay
   garageTabActive=(name==='garage');
+  // the Cars tab renders the 3D parking lot; every other tab uses the showroom scene
+  if(name!=='cars' && showcase){ activeScene=showcase.scene; activeCam=showcase.cam; }
   if(name==='dev'){ buildDevTab();
     if(showcase.carHolder){showcase.carHolder.root.rotation.set(0,-0.55,0);} }
   if(name==='cars'){ buildCarsTab(); }
@@ -4055,36 +4077,187 @@ function buildStaffTab(){
 }
 const LIVERY_PRESETS=[['#e11d2a','#ffffff'],['#1769c4','#e8eef6'],['#1ec96b','#06301c'],
   ['#ff7a00','#1a1d24'],['#9b51e0','#ffffff'],['#ffd000','#1a1d24'],['#101216','#ff2a2a'],['#e8eef6','#1769c4']];
-function buildCarsTab(){
-  ensureEconomy(GAME.team);
-  const grid=$('#carGrid'); if(grid){ grid.innerHTML='';
-    const owned=GAME.team.owned||[GAME.team.car];
-    CAR_ORDER.forEach(key=>{
-      const c=CARS[key], sel=GAME.team.car===key, isOwned=owned.indexOf(key)>=0;
-      const card=document.createElement('div');
-      card.className='car-card'+(sel?' sel':'')+(isOwned?'':' locked');
-      const bar=(lab,v)=>`<div class="cc-stat"><span>${lab}</span><div class="bar"><i style="width:${v}%"></i></div></div>`;
-      card.innerHTML=`<div class="cc-swatch" style="background:${c.color}"></div>
-        <div class="cc-name">${c.name}</div><div class="cc-sub">${c.sub}</div>
-        ${bar('Speed',c.spd)}${bar('Accel',c.acc)}${bar('Handling',c.hnd)}
-        <div class="cc-sel-tag">${isOwned?(sel?'● Selected':'Select'):'🔒 Locked — win a challenge'}</div>`;
-      card.onclick=()=>{ if(owned.indexOf(key)<0){toast('Locked — unlock it through challenges');return;}
-        GAME.team.car=key; writeSave({team:GAME.team});
-        const car=getCar(GAME.team); showcase.scene.add(car.root); showcase.carHolder=car;
-        $('#hubCarName').textContent=c.name.replace('Ferrari ','');
-        buildCarsTab(); };
-      grid.appendChild(card);
+/* ======================================================================
+   3D PARKING LOT — the Cars & Livery tab is a roamable lot of cars
+   ====================================================================== */
+let parking=null, parkFocus=null;
+function parkingFloorTex(){
+  const s=512,c=cvs(s,s),x=c.getContext('2d');
+  x.fillStyle='#3b3e44';x.fillRect(0,0,s,s);
+  for(let i=0;i<6000;i++){x.fillStyle='rgba(0,0,0,'+(Math.random()*.18)+')';x.fillRect(Math.random()*s,Math.random()*s,2,2);}
+  for(let i=0;i<2500;i++){x.fillStyle='rgba(255,255,255,'+(Math.random()*.05)+')';x.fillRect(Math.random()*s,Math.random()*s,1,1);}
+  const t=new THREE.CanvasTexture(c);t.wrapS=t.wrapT=THREE.RepeatWrapping;t.repeat.set(40,40);return t;
+}
+function buildParkingLot(){
+  const scene=new THREE.Scene();
+  scene.background=new THREE.Color(0x8fb4dd);
+  scene.fog=new THREE.Fog(0x8fb4dd,140,420);
+  const cam=new THREE.PerspectiveCamera(62,innerWidth/innerHeight,0.1,900);
+  scene.add(new THREE.HemisphereLight(0xcfe2ff,0x6a6f78,0.95));
+  const sun=new THREE.DirectionalLight(0xfff2dc,1.9); sun.position.set(60,95,35); sun.castShadow=true;
+  sun.shadow.mapSize.set(2048,2048); const d=90,scam=sun.shadow.camera; scam.left=-d;scam.right=d;scam.top=d;scam.bottom=-d;scam.near=10;scam.far=320; sun.shadow.bias=-0.0005;
+  scene.add(sun);scene.add(sun.target);
+  const floor=new THREE.Mesh(new THREE.PlaneGeometry(600,600),new THREE.MeshStandardMaterial({map:parkingFloorTex(),roughness:.97}));
+  floor.rotation.x=-Math.PI/2;floor.receiveShadow=true;scene.add(floor);
+  const spaceW=3.7, spaceD=5.6, aisle=8, totalSpaces=12;
+  const startX=-(totalSpaces-1)*spaceW/2;
+  const rowZ=[-(aisle/2+spaceD/2), (aisle/2+spaceD/2)];
+  const lineMat=new THREE.MeshBasicMaterial({color:0xeef0f4});
+  rowZ.forEach((rz,ri)=>{
+    for(let i=0;i<=totalSpaces;i++){
+      const lx=startX-spaceW/2+i*spaceW;
+      const line=new THREE.Mesh(new THREE.PlaneGeometry(0.13,spaceD),lineMat);
+      line.rotation.x=-Math.PI/2;line.position.set(lx,0.02,rz);scene.add(line);
+    }
+    const back=new THREE.Mesh(new THREE.PlaneGeometry(spaceW*totalSpaces,0.18),lineMat);
+    back.rotation.x=-Math.PI/2;back.position.set(startX-spaceW/2+spaceW*totalSpaces/2,0.02,rz+(ri===0?-1:1)*spaceD/2);scene.add(back);
+  });
+  // light poles behind each row (clear of the driving aisle)
+  const poleMat=new THREE.MeshStandardMaterial({color:0x2a2e36,metalness:.5,roughness:.5});
+  const poleZ=(aisle/2+spaceD+2.5);
+  for(let i=0;i<=totalSpaces;i+=4){ const lx=startX-spaceW/2+i*spaceW;
+    [-poleZ,poleZ].forEach(pz=>{
+      const pole=new THREE.Mesh(new THREE.CylinderGeometry(0.16,0.16,7,8),poleMat); pole.position.set(lx,3.5,pz); pole.castShadow=true; scene.add(pole);
+      const head=new THREE.Mesh(new THREE.BoxGeometry(1.6,0.3,0.7),poleMat); head.position.set(lx,7,pz); scene.add(head);
     });
   }
-  const sw=$('#liverySwatches'); if(sw){ sw.innerHTML='';
-    LIVERY_PRESETS.forEach(pr=>{ const d=document.createElement('div');d.className='lb-sw';
-      d.style.background=`linear-gradient(135deg,${pr[0]} 60%,${pr[1]} 60%)`;
-      d.onclick=()=>{ GAME.team.color=pr[0];GAME.team.accent=pr[1];writeSave({team:GAME.team});
-        applyTeamColorsToGarage(GAME.team);
-        if(showcase.carHolder&&showcase.carHolder.setLivery)showcase.carHolder.setLivery(GAME.team); };
-      sw.appendChild(d); });
+  const cars=[];
+  // only the real, selectable cars — parked in a single row, centred
+  const startSlot=Math.floor((totalSpaces-CAR_ORDER.length)/2);
+  const rz=rowZ[0], faceY=0;
+  CAR_ORDER.forEach((key,n)=>{
+    const px=startX+(startSlot+n)*spaceW;
+    const c=makeCar(Object.assign({},GAME.team,{car:key,color:CARS[key].color,accent:CARS[key].accent}));
+    c.root.position.set(px,0,rz); c.root.rotation.y=faceY;
+    c.root.traverse(o=>{ if(o.isMesh)o.castShadow=true; o.userData.carKey=key; });
+    scene.add(c.root); cars.push({key,car:c,x:px,z:rz});
+  });
+  return {scene,cam,cars,pos:new THREE.Vector3(startX,2.5,0),yaw:Math.PI/2,pitch:-0.12,keys:{},
+    startX,spaceW,totalSpaces,bounds:{minX:startX-8,maxX:startX+spaceW*(totalSpaces-1)+8,minZ:-rowZ[1]-8,maxZ:rowZ[1]+8}};
+}
+function carStatus(key){
+  const t=GAME.team;
+  if((t.owned||[]).includes(key)) return {st:'owned',sel:t.car===key};
+  if((t.unlocked||[]).includes(key)) return {st:'buy'};
+  const next=CAR_ORDER.find(k=>!(t.owned||[]).includes(k)&&!(t.unlocked||[]).includes(k));
+  if(key===next) return {st:'progress',pct:Math.round(((t.unlockPts||0)%UNLOCK_COST)/UNLOCK_COST*100)};
+  return {st:'locked'};
+}
+function refreshParkingLot(){
+  if(!parking)return;
+  for(const e of parking.cars){
+    const t=(GAME.team.car===e.key)?GAME.team:{color:CARS[e.key].color,accent:CARS[e.key].accent,number:GAME.team.number||'7',livery:GAME.team.livery||'Stripe'};
+    if(e.car.setLivery) e.car.setLivery(t);
   }
 }
+function enterParking(){
+  ensureEconomy(GAME.team);
+  if(!parking) parking=buildParkingLot();
+  refreshParkingLot();
+  activeScene=parking.scene; activeCam=parking.cam;
+  // start in the aisle facing the row of cars head-on
+  const startSlot=Math.floor((parking.totalSpaces-CAR_ORDER.length)/2);
+  const centerX=parking.startX+(startSlot+(CAR_ORDER.length-1)/2)*parking.spaceW;
+  parking.pos.set(centerX,2.6,9); parking.yaw=Math.PI; parking.pitch=-0.10;
+  $('#liveryBar').style.display='none'; $('#carPopup').style.display='none'; parkFocus=null;
+}
+function updateParking(dt){
+  if(!parking)return; const k=parking.keys, spd=22;
+  const cy=Math.cos(parking.yaw), sy=Math.sin(parking.yaw);
+  let fx=0,fz=0;
+  if(k['w']||k['arrowup']){fx+=sy;fz+=cy;} if(k['s']||k['arrowdown']){fx-=sy;fz-=cy;}
+  if(k['a']||k['arrowleft']){fx+=cy;fz-=sy;} if(k['d']||k['arrowright']){fx-=cy;fz+=sy;}
+  const L=Math.hypot(fx,fz); if(L>0){ parking.pos.x+=fx/L*spd*dt; parking.pos.z+=fz/L*spd*dt; }
+  const b=parking.bounds; parking.pos.x=clamp(parking.pos.x,b.minX,b.maxX); parking.pos.z=clamp(parking.pos.z,b.minZ,b.maxZ);
+  parking.pos.y=2.5;
+  const cp=Math.cos(parking.pitch);
+  const fwd=new THREE.Vector3(Math.sin(parking.yaw)*cp, Math.sin(parking.pitch), Math.cos(parking.yaw)*cp);
+  parking.cam.position.copy(parking.pos);
+  parking.cam.lookAt(parking.pos.x+fwd.x, parking.pos.y+fwd.y, parking.pos.z+fwd.z);
+}
+const _parkRay=new THREE.Raycaster(), _parkV2=new THREE.Vector2();
+function parkPick(clientX,clientY){
+  if(!parking)return null;
+  _parkV2.x=(clientX/innerWidth)*2-1; _parkV2.y=-(clientY/innerHeight)*2+1;
+  _parkRay.setFromCamera(_parkV2,parking.cam);
+  const hits=_parkRay.intersectObjects(parking.cars.map(e=>e.car.root),true);
+  if(!hits.length)return null;
+  let o=hits[0].object; while(o && !o.userData.carKey) o=o.parent;
+  return o?o.userData.carKey:null;
+}
+function showCarPopup(key,clientX,clientY){
+  const pop=$('#carPopup'); if(!key){pop.style.display='none';return;}
+  const c=CARS[key], s=carStatus(key);
+  let tag='';
+  if(s.st==='owned') tag=`<div class="cp-tag owned">${s.sel?'● SELECTED':'OWNED — click to select'}</div><div class="cp-stat" style="margin-top:4px;color:#7aa0ff">Click to edit livery</div>`;
+  else if(s.st==='buy') tag=`<div class="cp-tag buy">BUY · ${fmtMoney(c.price||0)}</div><div class="cp-stat" style="margin-top:4px;color:#9aa6d0">Click to purchase</div>`;
+  else if(s.st==='progress') tag=`<div class="cp-tag progress">${s.pct}% UNLOCKED</div><div class="cp-stat" style="margin-top:4px;color:#9aa6d0">Win challenges to unlock</div>`;
+  else tag=`<div class="cp-tag locked">LOCKED</div><div class="cp-stat" style="margin-top:4px;color:#9aa6d0">Unlock earlier cars first</div>`;
+  const bar=(lab,v)=>`<div class="cp-stat"><span>${lab}</span><div class="cp-bar"><i style="width:${v}%"></i></div></div>`;
+  pop.innerHTML=`<div class="cp-name">${c.name}</div><div class="cp-sub">${c.sub}</div>
+    ${bar('SPEED',c.spd)}${bar('ACCEL',c.acc)}${bar('HANDLING',c.hnd)}${tag}`;
+  pop.style.display='block';
+  const pw=pop.offsetWidth||220, ph=pop.offsetHeight||160;
+  pop.style.left=Math.min(clientX+16, innerWidth-pw-10)+'px';
+  pop.style.top=Math.min(clientY+16, innerHeight-ph-10)+'px';
+}
+function buildLiverySwatches(){
+  const sw=$('#liverySwatches'); if(!sw)return; sw.innerHTML='';
+  LIVERY_PRESETS.forEach(pr=>{ const d=document.createElement('div');d.className='lb-sw';
+    d.style.background=`linear-gradient(135deg,${pr[0]} 60%,${pr[1]} 60%)`;
+    d.onclick=(e)=>{ e.stopPropagation(); GAME.team.color=pr[0];GAME.team.accent=pr[1];writeSave({team:GAME.team});
+      applyTeamColorsToGarage(GAME.team);
+      if(showcase.carHolder&&showcase.carHolder.setLivery)showcase.carHolder.setLivery(GAME.team);
+      const e2=parking&&parking.cars.find(c=>c.key===GAME.team.car); if(e2&&e2.car.setLivery)e2.car.setLivery(GAME.team); };
+    sw.appendChild(d); });
+}
+function parkClick(key){
+  if(!key)return; const c=CARS[key], s=carStatus(key);
+  if(s.st==='owned'){
+    GAME.team.car=key; writeSave({team:GAME.team});
+    const car=getCar(GAME.team); showcase.scene.add(car.root); showcase.carHolder=car;
+    $('#hubCarName').textContent=c.name.replace('Ferrari ','');
+    refreshParkingLot();
+    parkFocus=key; $('#liveryFor').textContent=c.name; buildLiverySwatches(); $('#liveryBar').style.display='block';
+    toast(c.name+' selected');
+  } else if(s.st==='buy'){
+    if((GAME.team.money||0) < (c.price||0)){ toast('Not enough budget — '+fmtMoney(c.price||0)+' needed'); return; }
+    GAME.team.money-=(c.price||0);
+    GAME.team.owned=GAME.team.owned||[]; GAME.team.owned.push(key);
+    GAME.team.unlocked=(GAME.team.unlocked||[]).filter(k=>k!==key);
+    GAME.team.car=key; GAME.team.cars=(GAME.team.owned||[]).length;
+    writeSave({team:GAME.team});
+    const car=getCar(GAME.team); showcase.scene.add(car.root); showcase.carHolder=car;
+    refreshParkingLot();
+    toast('🏁 Bought the '+c.name+' for '+fmtMoney(c.price||0));
+  } else if(s.st==='progress'){ toast(s.pct+'% unlocked — keep winning challenges');
+  } else { toast('Locked — unlock the earlier cars first'); }
+}
+// pointer: hover popup + drag-to-look + click action (only in the cars tab)
+(function initParkingInput(){
+  const surf=$('#tab-cars'); if(!surf)return;
+  let dragging=false, moved=false, lastX=0, lastY=0;
+  const active=()=>STATE==='garage'&&currentTab==='cars'&&parking;
+  const onUI=e=>e.target&&e.target.closest&&e.target.closest('#liveryBar');
+  surf.addEventListener('pointerdown',e=>{ if(!active()||onUI(e))return; dragging=true; moved=false; lastX=e.clientX; lastY=e.clientY; });
+  window.addEventListener('pointerup',e=>{
+    if(!active()||onUI(e)){dragging=false;return;}
+    if(dragging && !moved){ parkClick(parkPick(e.clientX,e.clientY)); }
+    dragging=false;
+  });
+  surf.addEventListener('pointermove',e=>{
+    if(!active())return;
+    if(dragging){ const dx=e.clientX-lastX, dy=e.clientY-lastY; lastX=e.clientX; lastY=e.clientY;
+      if(Math.abs(dx)+Math.abs(dy)>3) moved=true;
+      parking.yaw-=dx*0.004; parking.pitch=clamp(parking.pitch-dy*0.004,-0.65,0.35);
+      $('#carPopup').style.display='none';
+    } else { showCarPopup(parkPick(e.clientX,e.clientY), e.clientX, e.clientY); }
+  });
+  window.addEventListener('keydown',e=>{ if(!active())return; const k=e.key.toLowerCase();
+    if(['w','a','s','d','arrowup','arrowdown','arrowleft','arrowright'].includes(k)){ parking.keys[k]=true; e.preventDefault(); } });
+  window.addEventListener('keyup',e=>{ const k=e.key.toLowerCase(); if(parking)parking.keys[k]=false; });
+})();
+function buildCarsTab(){ enterParking(); }
 let garageTabActive=true, currentTab='garage';
 document.querySelectorAll('.hub-tile').forEach(b=>b.onclick=()=>setTab(b.dataset.tab));
 $('#tabBack').onclick=()=>setTab('garage');
@@ -4162,10 +4335,12 @@ function completeChallenge(ch){
   if(r.rp){GAME.team.rp+=r.rp;parts.push(r.rp+' RP');}
   if(r.spares){GAME.team.spares=(GAME.team.spares||0)+r.spares;parts.push(r.spares+' spare'+(r.spares>1?'s':''));}
   GAME.team.unlockPts=(GAME.team.unlockPts||0)+(ch.unlock||0);
+  GAME.team.unlocked=GAME.team.unlocked||[];
   while(GAME.team.unlockPts>=UNLOCK_COST){
-    const locked=CAR_ORDER.find(k=>!(GAME.team.owned||[]).includes(k));
-    if(!locked)break; GAME.team.unlockPts-=UNLOCK_COST; GAME.team.owned.push(locked);
-    setTimeout(()=>toast('🏆 NEW CAR UNLOCKED — '+CARS[locked].name),1200);
+    // a car becomes available to BUY (not free) once unlocked
+    const locked=CAR_ORDER.find(k=>!(GAME.team.owned||[]).includes(k) && !GAME.team.unlocked.includes(k));
+    if(!locked)break; GAME.team.unlockPts-=UNLOCK_COST; GAME.team.unlocked.push(locked);
+    setTimeout(()=>toast('🏆 '+CARS[locked].name+' UNLOCKED — buy it in the Garage for '+fmtMoney(CARS[locked].price||0)),1200);
   }
   writeSave({team:GAME.team});
   toast('Challenge passed! +'+(parts.join(' · ')||'progress'));
@@ -4238,6 +4413,7 @@ function ensureEconomy(team){
   if(!team.staff)team.staff=rollStaff();
   if(!team.owned)team.owned=[team.car];        // ownership: start with the chosen car
   if(team.owned.indexOf(team.car)<0)team.car=team.owned[0];
+  if(!team.unlocked)team.unlocked=[];          // unlocked = available to BUY, not yet owned
   if(!team.challenges)team.challenges=[];
   if(team.spares==null)team.spares=0;
   if(team.freeUpgrades==null)team.freeUpgrades=0;   // earned from Delivery Dash challenges
@@ -5361,7 +5537,8 @@ function frame(now){
   let dt=(now-last)/1000;last=now;dt=Math.min(dt,0.05);
 
   if(STATE==='team'||STATE==='garage'){
-    if(currentTab==='dev'){
+    if(currentTab==='cars'){ updateParking(dt); }
+    else if(currentTab==='dev'){
       // static work-bay framing — car centred, sitting still in the bay
       if(showcase.carHolder){spinWheelsVisual(showcase.carHolder, 0, 0);
         showcase.carHolder.root.rotation.y=-0.62;}
