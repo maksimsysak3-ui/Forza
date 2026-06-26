@@ -1287,7 +1287,7 @@ const KART3_PTS=[
 
 const TRACKS = {
   nurburgring:{ name:'Nürburgring', country:'Germany', color:'#d11f2a',
-    pts:TRACK_PTS, scale:1.75, env:'alpine', gimmick:'elevation', elevAmp:0.5,
+    pts:TRACK_PTS, scale:1.75, env:'alpine', gimmick:'elevation', elevAmp:0.95,
     sponsors:[ {name:'NORDWERK', color:'#d11f2a'},
                {name:'EIFEL OIL', color:'#f4c20d'},
                {name:'GREENHELL', color:'#1ec96b'} ],
@@ -1311,7 +1311,7 @@ const TRACKS = {
     stand:{ roof:'#b8202a', frame:'#eef1f5', tiers:6, W:28, roofType:'pagoda',
             banner:['#ffffff','#e23b3b','#ff77a9'], crowd:['#e23b3b','#ffffff','#ff9ebf','#e6e9f0','#d12f3a'] } },
   roadamerica:{ name:'Road America', country:'United States', color:'#2f8f4e',
-    pts:RA_PTS, scale:1.55, env:'grassland', gimmick:'elevation', elevAmp:0.55,
+    pts:RA_PTS, scale:1.55, env:'grassland', gimmick:'elevation', elevAmp:1.0,
     sponsors:[ {name:'HEARTLAND', color:'#2f8f4e'},
                {name:'PRAIRIE FUEL', color:'#f4a300'},
                {name:'STARS RACING', color:'#3b6cff'} ],
@@ -1319,7 +1319,7 @@ const TRACKS = {
     stand:{ roof:'#2a3f7a', frame:'#9a7a4e', tiers:5, W:32, roofType:'bleacher',
             banner:['#b22234','#ffffff','#3c3b6e'], crowd:['#c4452f','#dfe3ea','#3a6cc4','#e6c84a','#cfd4dd'] } },
   chuckwalla:{ name:'Chuckwalla Valley', country:'United States', color:'#e08a2a',
-    pts:CHUCK_PTS, scale:1.6, env:'grassland', gimmick:'elevation', elevAmp:0.5,
+    pts:CHUCK_PTS, scale:1.6, env:'grassland', gimmick:'elevation', elevAmp:0.9,
     sponsors:[ {name:'DESERT FUEL', color:'#e08a2a'},
                {name:'MOJAVE', color:'#c9542a'},
                {name:'SUNBELT', color:'#f4c20d'} ],
@@ -3002,51 +3002,52 @@ function bannerTex(cols,country){
 }
 function makeGrandstand(style){
   const g=new THREE.Group();
-  const W=style.W||30, D=15, tiers=style.tiers||6, stepH=1.15, stepD=D/tiers;
-  const frameMat=new THREE.MeshStandardMaterial({color:style.frame,roughness:.62,metalness:.28});
+  const W=style.W||30, D=16, tiers=style.tiers||6, stepH=1.05, stepD=D/tiers;
+  const frameMat=new THREE.MeshStandardMaterial({color:style.frame,roughness:.55,metalness:.35});
+  const concreteMat=new THREE.MeshStandardMaterial({color:0xc2c7cf,roughness:.92,metalness:.05});
+  const darkMat=new THREE.MeshStandardMaterial({color:0x2b303a,roughness:.6,metalness:.4});
   const crowdMat=new THREE.MeshStandardMaterial({map:crowdTex(style.crowd),roughness:.95});
-  const topY=tiers*stepH;
-  // stepped seating: front (+z) toward the track, rising away
+  const topY=1.4+tiers*stepH;
+  // ---- concrete plinth the whole stand sits on ----
+  const base=new THREE.Mesh(new THREE.BoxGeometry(W+3,1.4,D+2.4),concreteMat);
+  base.position.set(0,0.7,0); base.receiveShadow=true; base.castShadow=true; g.add(base);
+  // ---- raked seating bowl: stepped decks with rows of crowd on each riser ----
   for(let i=0;i<tiers;i++){
-    const h=(i+1)*stepH, zc=D/2 - i*stepD - stepD/2;
-    const step=new THREE.Mesh(new THREE.BoxGeometry(W,h,stepD+0.08),frameMat);
-    step.position.set(0,h/2,zc);step.castShadow=true;step.receiveShadow=true;g.add(step);
-    const riser=new THREE.Mesh(new THREE.PlaneGeometry(W*0.985,stepH*0.96),crowdMat);
-    riser.position.set(0,h-stepH*0.5,zc+stepD/2+0.05);g.add(riser);
-  }
-  // side walls
-  for(const sx of [-W/2-0.1, W/2+0.1]){
-    const wallShape=new THREE.Mesh(new THREE.BoxGeometry(0.4,topY,D),frameMat);
-    wallShape.position.set(sx,topY/2,0);wallShape.castShadow=true;g.add(wallShape);
-  }
-  // roof per style
-  const roofMat=new THREE.MeshStandardMaterial({color:style.roof,roughness:.5,metalness:.25,side:THREE.DoubleSide});
-  const colH=topY+2.2;
-  if(style.roofType!=='open'){
-    for(const sx of [-W/2+0.7, 0, W/2-0.7]){
-      const p=new THREE.Mesh(new THREE.CylinderGeometry(0.24,0.24,colH,10),frameMat);
-      p.position.set(sx,colH/2,-D/2+0.9);p.castShadow=true;g.add(p);
+    const h=1.4+(i+1)*stepH, zc=D/2 - i*stepD - stepD/2;
+    const step=new THREE.Mesh(new THREE.BoxGeometry(W,h,stepD+0.06),concreteMat);
+    step.position.set(0,h/2,zc); step.castShadow=step.receiveShadow=true; g.add(step);
+    const riser=new THREE.Mesh(new THREE.PlaneGeometry(W*0.99,stepH*0.99),crowdMat);
+    riser.position.set(0,h-stepH*0.5,zc+stepD/2+0.04); g.add(riser);
+    // aisle gaps (dark vertical strips) every third of the width
+    for(const ax of [-W*0.18,W*0.18]){
+      const aisle=new THREE.Mesh(new THREE.PlaneGeometry(0.5,stepH*0.99),darkMat);
+      aisle.position.set(ax,h-stepH*0.5,zc+stepD/2+0.05); g.add(aisle);
     }
-    if(style.roofType==='pagoda'){
-      // two stacked sloped roofs
-      for(let k=0;k<2;k++){
-        const rw=W+2-k*5, r=new THREE.Mesh(new THREE.BoxGeometry(rw,0.35,D*0.62-k*2),roofMat);
-        r.position.set(0,colH-0.2+k*1.7,0.4+k*1.0);r.rotation.x=-0.13-k*0.04;r.castShadow=true;g.add(r);
-      }
-    }else{ // cantilever / bleacher: single big canopy reaching over the seats
-      const r=new THREE.Mesh(new THREE.BoxGeometry(W+1.6,0.4,D*0.92),roofMat);
-      r.position.set(0,colH,0.6);r.rotation.x=-0.10;r.castShadow=true;g.add(r);
-    }
-    // banner fascia hanging off the roof front
-    const banner=new THREE.Mesh(new THREE.PlaneGeometry(W+1.2,1.5),
-      new THREE.MeshStandardMaterial({map:bannerTex(style.banner,style.country),roughness:.7,side:THREE.DoubleSide}));
-    banner.position.set(0,colH-1.0,D*0.42);banner.rotation.x=0.05;g.add(banner);
-  } else {
-    // open terrace: just a low banner wall at the back, no roof
-    const banner=new THREE.Mesh(new THREE.PlaneGeometry(W,1.8),
-      new THREE.MeshStandardMaterial({map:bannerTex(style.banner,style.country),roughness:.7,side:THREE.DoubleSide}));
-    banner.position.set(0,topY+0.9,-D/2+0.3);g.add(banner);
   }
+  // ---- angled side walls ----
+  for(const sx of [-W/2-0.4, W/2+0.4]){
+    const wall=new THREE.Mesh(new THREE.BoxGeometry(0.6,topY,D),frameMat);
+    wall.position.set(sx,topY/2,0); wall.castShadow=true; g.add(wall);
+  }
+  // ---- rear columns + truss + sweeping cantilever roof ----
+  const roofMat=new THREE.MeshStandardMaterial({color:style.roof,roughness:.4,metalness:.45,side:THREE.DoubleSide});
+  const colH=topY+3.2;
+  for(const sx of [-W/2+1.2, 0, W/2-1.2]){
+    const p=new THREE.Mesh(new THREE.BoxGeometry(0.55,colH,0.55),frameMat);
+    p.position.set(sx,colH/2,-D/2+0.8); p.castShadow=true; g.add(p);
+  }
+  const truss=new THREE.Mesh(new THREE.BoxGeometry(W+1.5,0.4,0.4),darkMat);
+  truss.position.set(0,colH-0.3,-D/2+0.8); g.add(truss);
+  const roof=new THREE.Mesh(new THREE.BoxGeometry(W+3,0.55,D*0.98),roofMat);
+  roof.position.set(0,colH,0.9); roof.rotation.x=-0.13; roof.castShadow=true; g.add(roof);
+  // thin roof underside lip
+  const lip=new THREE.Mesh(new THREE.BoxGeometry(W+3,0.18,0.4),darkMat);
+  lip.position.set(0,colH-0.5,0.9+D*0.49); lip.rotation.x=-0.13; g.add(lip);
+  // ---- bright sponsor banner across the roof fascia ----
+  const banner=new THREE.Mesh(new THREE.PlaneGeometry(W+2.6,1.8),
+    new THREE.MeshStandardMaterial({map:bannerTex(style.banner,style.country),roughness:.5,
+      emissive:0x202020,emissiveIntensity:.3,side:THREE.DoubleSide}));
+  banner.position.set(0,colH-1.2,D*0.47); banner.rotation.x=0.05; g.add(banner);
   return g;
 }
 function buildGrandstands(scene,C,nrmL,N,HALF,def){
@@ -3064,7 +3065,7 @@ function buildGrandstands(scene,C,nrmL,N,HALF,def){
     const off=HALF+13.5;
     const gx=c.x+nx*off, gz=c.z+nz*off;
     const stand=makeGrandstand(style);
-    stand.position.set(gx,0,gz);
+    stand.position.set(gx, elevAt(gx,gz,i)-0.4, gz);   // sit on the terrain (follows elevation)
     // face the track: local +z must point toward the centerline (-normal)
     stand.rotation.y=Math.atan2(-nx,-nz);
     scene.add(stand);
@@ -3277,6 +3278,9 @@ function buildEnvironment(scene, env){
       c=mix(c,top,smoothstep(0.18,0.7,h));gl_FragColor=vec4(c,1.);}`
   });
   scene.add(new THREE.Mesh(skyGeo,skyMat));
+  // overcast forest: soft diffuse fill so the car/scenery read clearly without harsh sun
+  if(forest){ scene.add(new THREE.HemisphereLight(0xc4cdd6,0x55624a,0.95));
+    const amb=new THREE.DirectionalLight(0xeef2f6,0.7); amb.position.set(-40,80,-30); scene.add(amb); }
 
   let fogCol=0xc8dcee, fogN=1900, fogF=4400;
   if(forest){fogCol=0x8a929c;fogN=240;fogF=1250;}     // moody overcast haze
@@ -6053,7 +6057,7 @@ function updateChaseCam(dt,sp01){
   }
   // camera lags behind with positional + rotational delay -> sense of speed
   // rally stages pull the camera in tight and low for a chase-cam feel
-  const back=(TRACK.rally?4.3:6.6)+sp01*(TRACK.rally?1.6:2.8), up=(TRACK.rally?2.4:3.4)+sp01*0.7;
+  const back=(TRACK.rally?5.6:6.6)+sp01*(TRACK.rally?2.0:2.8), up=(TRACK.rally?3.5:3.4)+sp01*0.8;
   const desired=new THREE.Vector3(sim.x-f[0]*back, ey0+up, sim.z-f[1]*back);
   const rate=lerp(4.5,7.5,sp01);
   camPos.lerp(desired,1-Math.exp(-rate*dt));
