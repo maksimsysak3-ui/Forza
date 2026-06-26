@@ -1345,7 +1345,7 @@ const TRACKS = {
   city:{ name:'Sunnyside City', country:'Delivery', color:'#f4a300', cityMap:true, env:'city',
     blurb:'An open grid of city streets — deliver before the clock runs out.' },
   rally:{ name:'Black Pine Stage', country:'Rally', color:'#7a5a3a', rally:true, env:'forest',
-    pts:RALLY_PTS, scale:1.7, half:9.0, elevAmp:0.7,
+    pts:RALLY_PTS, scale:1.7, half:8.0, elevAmp:1.25,
     blurb:'An open forest rally stage — loose dirt, big jumps and tall pines.' },
 };
 </script>
@@ -2258,24 +2258,39 @@ function dirtTex(){
   const t=new THREE.CanvasTexture(c);t.wrapS=t.wrapT=THREE.RepeatWrapping;return t;
 }
 function buildRallyForest(scene,C,N,nrmL,HALF){
-  const trunkG=new THREE.CylinderGeometry(0.5,0.85,9,7), trunkM=new THREE.MeshStandardMaterial({color:0x49351f,roughness:.95});
-  const leafG=new THREE.ConeGeometry(3.6,10,8), leafM=new THREE.MeshStandardMaterial({color:0x2c5a30,roughness:.9});
-  const leaf2G=new THREE.ConeGeometry(2.6,7,8), leaf2M=new THREE.MeshStandardMaterial({color:0x356b38,roughness:.9});
-  const COUNT=820;
-  const tr=new THREE.InstancedMesh(trunkG,trunkM,COUNT), lf=new THREE.InstancedMesh(leafG,leafM,COUNT), lf2=new THREE.InstancedMesh(leaf2G,leaf2M,COUNT);
+  // tall straight trunks + layered canopy, packed densely right up to the track
+  const trunkG=new THREE.CylinderGeometry(0.42,0.7,16,7), trunkM=new THREE.MeshStandardMaterial({color:0x4a3722,roughness:.95});
+  const leafG=new THREE.ConeGeometry(3.8,11,8), leafM=new THREE.MeshStandardMaterial({color:0x2a5630,roughness:.9});
+  const leaf2G=new THREE.ConeGeometry(2.8,8,8), leaf2M=new THREE.MeshStandardMaterial({color:0x37703a,roughness:.9});
+  const leaf3G=new THREE.ConeGeometry(1.9,6,8), leaf3M=new THREE.MeshStandardMaterial({color:0x418a44,roughness:.9});
+  const COUNT=2400;
+  const tr=new THREE.InstancedMesh(trunkG,trunkM,COUNT), lf=new THREE.InstancedMesh(leafG,leafM,COUNT),
+        lf2=new THREE.InstancedMesh(leaf2G,leaf2M,COUNT), lf3=new THREE.InstancedMesh(leaf3G,leaf3M,COUNT);
   const o=new THREE.Object3D(); let n=0, tries=0;
-  while(n<COUNT && tries<COUNT*7){ tries++;
-    const i=(Math.random()*N)|0, side=Math.random()<0.5?1:-1, off=HALF+7+Math.random()*150;
+  while(n<COUNT && tries<COUNT*8){ tries++;
+    const i=(Math.random()*N)|0, side=Math.random()<0.5?1:-1, off=HALF+4+Math.random()*120;
     const c=C[i],nl=nrmL[i], x=c.x+nl.x*side*off, z=c.z+nl.z*side*off;
-    if(globalNearestDist(x,z)<HALF+5) continue;
-    const y=elevAt(x,z,i), sc=0.85+Math.random()*1.25, ry=Math.random()*TAU;
+    if(globalNearestDist(x,z)<HALF+3) continue;
+    const y=elevAt(x,z,i), sc=1.0+Math.random()*1.5, ry=Math.random()*TAU;
     o.rotation.set(0,ry,0);
-    o.position.set(x,y+4.5*sc,z); o.scale.set(sc,sc,sc); o.updateMatrix(); tr.setMatrixAt(n,o.matrix);
-    o.position.set(x,y+10*sc,z); o.updateMatrix(); lf.setMatrixAt(n,o.matrix);
-    o.position.set(x,y+13.5*sc,z); o.updateMatrix(); lf2.setMatrixAt(n,o.matrix);
+    o.position.set(x,y+8*sc,z); o.scale.set(sc,sc,sc); o.updateMatrix(); tr.setMatrixAt(n,o.matrix);
+    o.position.set(x,y+15*sc,z); o.updateMatrix(); lf.setMatrixAt(n,o.matrix);
+    o.position.set(x,y+19*sc,z); o.updateMatrix(); lf2.setMatrixAt(n,o.matrix);
+    o.position.set(x,y+22.5*sc,z); o.updateMatrix(); lf3.setMatrixAt(n,o.matrix);
     n++;
   }
-  tr.count=lf.count=lf2.count=n; [tr,lf,lf2].forEach(m=>{m.castShadow=true;m.receiveShadow=true;scene.add(m);});
+  tr.count=lf.count=lf2.count=lf3.count=n; [tr,lf,lf2,lf3].forEach(m=>{m.castShadow=true;m.receiveShadow=true;scene.add(m);});
+  // ---- ferny undergrowth: low bushy clumps carpeting the forest floor ----
+  const fernG=new THREE.ConeGeometry(1.3,1.1,6), fernM=new THREE.MeshStandardMaterial({color:0x4f9b3e,roughness:1,flatShading:true});
+  const FN=3200, fern=new THREE.InstancedMesh(fernG,fernM,FN); let fn=0, ft=0;
+  while(fn<FN && ft<FN*8){ ft++;
+    const i=(Math.random()*N)|0, side=Math.random()<0.5?1:-1, off=HALF+2+Math.random()*110;
+    const c=C[i],nl=nrmL[i], x=c.x+nl.x*side*off, z=c.z+nl.z*side*off;
+    if(globalNearestDist(x,z)<HALF+1.5) continue;
+    const y=elevAt(x,z,i), s=0.7+Math.random()*1.2;
+    o.rotation.set(0,Math.random()*TAU,0); o.position.set(x,y+0.5*s,z); o.scale.set(s,s*0.7,s); o.updateMatrix(); fern.setMatrixAt(fn,o.matrix); fn++;
+  }
+  fern.count=fn; fern.receiveShadow=true; scene.add(fern);
 }
 function buildRallyTrack(scene, def){
   const SRC=def.pts, SCALE=def.scale||1.7, amp=def.elevAmp||0.7;
@@ -2286,10 +2301,13 @@ function buildRallyTrack(scene, def){
     return new THREE.Vector3((p[0]-cx)*SCALE, y, (p[1]-cy)*SCALE); });
   const curve=new THREE.CatmullRomCurve3(pts,false,'catmullrom',0.5);   // OPEN curve
   const N=900, C=curve.getSpacedPoints(N), HALF=def.half||9.0, len=curve.getLength();
-  // jumps: sharp local humps the car launches off
+  // jumps: big launch ramps — a steep rise that crests sharply then drops away
   const jumps=[0.16,0.40,0.63,0.85].map(f=>Math.floor(f*N));
-  jumps.forEach(ji=>{ for(let k=-9;k<=9;k++){ const idx=ji+k; if(idx<1||idx>N-1)continue;
-    const w=1-Math.abs(k)/9; C[idx].y += w*w*5.5; } });
+  jumps.forEach(ji=>{ for(let k=-14;k<=8;k++){ const idx=ji+k; if(idx<1||idx>N-1)continue;
+    let h;
+    if(k<=0){ const t=(k+14)/14; h=t*t*11; }      // long steep up-ramp to the crest
+    else { const t=k/8; h=(1-t)*11 - t*3; }        // sharp drop-away just past the crest
+    C[idx].y += h; } });
   TRACK.city=false;TRACK.kart=false;TRACK.elev=true;TRACK.rally=true;TRACK.open=true;
   TRACK._obstacles=null;TRACK._stands=null;TRACK.kartColor=def.color||'#7a5a3a';
   const tan=[],nrmL=[];
@@ -4658,10 +4676,11 @@ function rallyUpdate(dt){
     spawnDirt(sim.x - f[0]*1.6, elevAt(sim.x,sim.z,seg), sim.z - f[1]*1.6, f); }
   updateDirt(dt);
   // ---- jumps: launch off the humps when fast ----
-  if(RALLY.airT>0){ RALLY.airT-=dt; if(RALLY.airT<=0){ camShake(0.4); rallyFlash('NICE LANDING','good'); } }
-  else if(TRACK.jumps){ for(const ji of TRACK.jumps){ if(Math.abs(seg-ji)<3 && sim.speed>22 && !RALLY._lastJump){
-        RALLY.airT=RALLY.airDur=0.9; RALLY.airH=Math.min(6, sim.speed*0.16); RALLY._lastJump=ji;
-        setTimeout(()=>{RALLY._lastJump=null;},1500); break; } } }
+  if(RALLY.airT>0){ RALLY.airT-=dt; if(RALLY.airT<=0){ camShake(0.7); rallyFlash('BIG AIR!','good'); } }
+  else if(TRACK.jumps){ for(const ji of TRACK.jumps){ if(Math.abs(seg-ji)<3 && sim.speed>16 && !RALLY._lastJump){
+        const big=Math.min(13, 5+sim.speed*0.30);
+        RALLY.airDur=Math.min(2.0, 1.0+sim.speed*0.02); RALLY.airT=RALLY.airDur; RALLY.airH=big; RALLY._lastJump=ji;
+        rallyFlash('JUMP!','good'); setTimeout(()=>{RALLY._lastJump=null;},1800); break; } } }
   // ---- drift scoring ----
   if(RALLY.mode==='drift'){
     const sliding=sim.slip>0.35 && sim.speed>10 && sim.surf!=='grass';
@@ -5894,7 +5913,8 @@ function updateChaseCam(dt,sp01){
     return;
   }
   // camera lags behind with positional + rotational delay -> sense of speed
-  const back=6.6+sp01*2.8, up=3.4+sp01*0.7;
+  // rally stages pull the camera in tight and low for a chase-cam feel
+  const back=(TRACK.rally?4.3:6.6)+sp01*(TRACK.rally?1.6:2.8), up=(TRACK.rally?2.4:3.4)+sp01*0.7;
   const desired=new THREE.Vector3(sim.x-f[0]*back, ey0+up, sim.z-f[1]*back);
   const rate=lerp(4.5,7.5,sp01);
   camPos.lerp(desired,1-Math.exp(-rate*dt));
