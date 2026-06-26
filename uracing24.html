@@ -1345,7 +1345,7 @@ const TRACKS = {
   city:{ name:'Sunnyside City', country:'Delivery', color:'#f4a300', cityMap:true, env:'city',
     blurb:'An open grid of city streets — deliver before the clock runs out.' },
   rally:{ name:'Black Pine Stage', country:'Rally', color:'#7a5a3a', rally:true, env:'forest',
-    pts:RALLY_PTS, scale:1.7, half:8.0, elevAmp:1.25,
+    pts:RALLY_PTS, scale:1.7, half:8.0, elevAmp:1.5,
     blurb:'An open forest rally stage — loose dirt, big jumps and tall pines.' },
 };
 </script>
@@ -2271,7 +2271,7 @@ function buildRallyForest(scene,C,N,nrmL,HALF){
     const i=(Math.random()*N)|0, side=Math.random()<0.5?1:-1, off=HALF+4+Math.random()*120;
     const c=C[i],nl=nrmL[i], x=c.x+nl.x*side*off, z=c.z+nl.z*side*off;
     if(globalNearestDist(x,z)<HALF+3) continue;
-    const y=elevAt(x,z,i), sc=1.0+Math.random()*1.5, ry=Math.random()*TAU;
+    const y=elevAt(x,z,i)-0.5, sc=1.0+Math.random()*1.5, ry=Math.random()*TAU;  // trees on the terrain, not the road shelf
     o.rotation.set(0,ry,0);
     o.position.set(x,y+8*sc,z); o.scale.set(sc,sc,sc); o.updateMatrix(); tr.setMatrixAt(n,o.matrix);
     o.position.set(x,y+15*sc,z); o.updateMatrix(); lf.setMatrixAt(n,o.matrix);
@@ -2287,7 +2287,7 @@ function buildRallyForest(scene,C,N,nrmL,HALF){
     const i=(Math.random()*N)|0, side=Math.random()<0.5?1:-1, off=HALF+2+Math.random()*110;
     const c=C[i],nl=nrmL[i], x=c.x+nl.x*side*off, z=c.z+nl.z*side*off;
     if(globalNearestDist(x,z)<HALF+1.5) continue;
-    const y=elevAt(x,z,i), s=0.7+Math.random()*1.2;
+    const y=elevAt(x,z,i)-0.5, s=0.7+Math.random()*1.2;
     o.rotation.set(0,Math.random()*TAU,0); o.position.set(x,y+0.5*s,z); o.scale.set(s,s*0.7,s); o.updateMatrix(); fern.setMatrixAt(fn,o.matrix); fn++;
   }
   fern.count=fn; fern.receiveShadow=true; scene.add(fern);
@@ -2297,7 +2297,8 @@ function buildRallyTrack(scene, def){
   const xs=SRC.map(p=>p[0]),ys=SRC.map(p=>p[1]);
   const cx=(Math.min(...xs)+Math.max(...xs))/2, cy=(Math.min(...ys)+Math.max(...ys))/2;
   const pts=SRC.map((p,i)=>{ const f=i/SRC.length;
-    const y=(Math.sin(f*Math.PI*5)*6 + Math.sin(f*Math.PI*9+1.3)*3 + Math.sin(f*Math.PI*3)*4)*amp;
+    // dramatic mountain-stage elevation: big rolling hills + medium rolls + chop
+    const y=(Math.sin(f*Math.PI*4)*16 + Math.sin(f*Math.PI*7+1.3)*8 + Math.sin(f*Math.PI*11)*4 + Math.sin(f*Math.PI*2+0.6)*10)*amp;
     return new THREE.Vector3((p[0]-cx)*SCALE, y, (p[1]-cy)*SCALE); });
   const curve=new THREE.CatmullRomCurve3(pts,false,'catmullrom',0.5);   // OPEN curve
   const N=900, C=curve.getSpacedPoints(N), HALF=def.half||9.0, len=curve.getLength();
@@ -2324,9 +2325,17 @@ function buildRallyTrack(scene, def){
   TRACK.startTangent=Math.atan2(stt.x,stt.z);
   // ---- dirt road ribbon (follows terrain) ----
   const pos=[],uv=[],idx=[];
+  const ROADY=0.5;   // sit the road on a graded shelf clearly above the terrain
   for(let i=0;i<=N;i++){ const c=C[i],nl=nrmL[i];
-    pos.push(c.x+nl.x*HALF, c.y+0.06, c.z+nl.z*HALF,  c.x-nl.x*HALF, c.y+0.06, c.z-nl.z*HALF);
+    pos.push(c.x+nl.x*HALF, c.y+ROADY, c.z+nl.z*HALF,  c.x-nl.x*HALF, c.y+ROADY, c.z-nl.z*HALF);
     const v=i/(N/60); uv.push(0,v, 1,v); }
+  // dirt shoulders that slope down from the road shelf to the terrain (hide the lip)
+  const sp=[],sidx=[];
+  for(let i=0;i<=N;i++){ const c=C[i],nl=nrmL[i];
+    sp.push(c.x+nl.x*HALF, c.y+ROADY, c.z+nl.z*HALF,  c.x+nl.x*(HALF+3.5), c.y-0.6, c.z+nl.z*(HALF+3.5),
+            c.x-nl.x*HALF, c.y+ROADY, c.z-nl.z*HALF,  c.x-nl.x*(HALF+3.5), c.y-0.6, c.z-nl.z*(HALF+3.5)); }
+  for(let i=0;i<N;i++){ const a=i*4;
+    sidx.push(a,a+1,a+5, a,a+5,a+4,  a+2,a+6,a+3, a+3,a+6,a+7); }
   for(let i=0;i<N;i++){const a=i*2;idx.push(a,a+1,a+2,a+1,a+3,a+2);}
   const rg=new THREE.BufferGeometry();
   rg.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));
@@ -2335,13 +2344,19 @@ function buildRallyTrack(scene, def){
   const road=new THREE.Mesh(rg,new THREE.MeshStandardMaterial({map:rt,roughness:1,metalness:0,
     side:THREE.DoubleSide,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-2}));
   road.receiveShadow=true;road.renderOrder=1;scene.add(road);
+  // dirt shoulders (slope from the raised road shelf down onto the terrain)
+  const sg2=new THREE.BufferGeometry();
+  sg2.setAttribute('position',new THREE.Float32BufferAttribute(sp,3));
+  sg2.setIndex(sidx); sg2.computeVertexNormals();
+  const shoulder=new THREE.Mesh(sg2,new THREE.MeshStandardMaterial({map:rt,roughness:1,metalness:0,side:THREE.DoubleSide}));
+  shoulder.receiveShadow=true; shoulder.renderOrder=1; scene.add(shoulder);
   // start banner stripe
   { const c=C[2],nl=nrmL[2];
     const sg=new THREE.PlaneGeometry(HALF*2,3.4);
     const gtex=cvs(128,32),gx=gtex.getContext('2d');
     for(let xx=0;xx<128;xx+=16){gx.fillStyle=(xx/16)%2?'#fff':'#11141b';gx.fillRect(xx,0,16,32);}
     const sm=new THREE.Mesh(sg,new THREE.MeshStandardMaterial({map:new THREE.CanvasTexture(gtex),roughness:.9}));
-    sm.rotation.x=-Math.PI/2;sm.rotation.z=Math.atan2(tan[2].x,tan[2].z);sm.position.set(c.x,c.y+0.12,c.z);scene.add(sm); }
+    sm.rotation.x=-Math.PI/2;sm.rotation.z=Math.atan2(tan[2].x,tan[2].z);sm.position.set(c.x,c.y+0.55,c.z);scene.add(sm); }
   buildRallyForest(scene,C,N,nrmL,HALF);
   return TRACK;
 }
@@ -2726,7 +2741,8 @@ function elevAt(px,pz,seg){
     const ddx=u.x+ux*t-px, ddz=u.z+uz*t-pz;
     return {d:ddx*ddx+ddz*ddz, y:(u.y||0)+((v.y||0)-(u.y||0))*t}; }
   const f=pj(a,b), g=pj(p,a);
-  return f.d<=g.d ? f.y : g.y;
+  // on rally stages the drivable surface is a raised dirt shelf above the terrain
+  return (f.d<=g.d ? f.y : g.y) + (TRACK.rally?0.5:0);
 }
 /* ----- global nearest distance to centerline (for object placement) ----- */
 function globalNearestDist(px,pz){
@@ -3167,11 +3183,12 @@ function buildEnvironment(scene, env){
     scene.fog=new THREE.Fog(0xc8dcee, 600, 1600);
     return;
   }
-  const marsh = env==='marsh', fuji=env==='fuji', grass=env==='grassland'||env==='forest';
+  const marsh = env==='marsh', fuji=env==='fuji', forest=env==='forest', grass=env==='grassland'||env==='forest';
   // sky dome gradient
   const skyGeo=new THREE.SphereGeometry(2000,32,16);
   let skyTop=0x2a5c9e, skyMid=0x9fc3e8, skyBot=0xdfeaf5;
-  if(marsh){skyTop=0x3a6e7a;skyMid=0xbcd0c4;skyBot=0xdfe6d8;}
+  if(forest){skyTop=0x3a424c;skyMid=0x717a85;skyBot=0x9aa1aa;}   // dark overcast
+  else if(marsh){skyTop=0x3a6e7a;skyMid=0xbcd0c4;skyBot=0xdfe6d8;}
   else if(fuji){skyTop=0x3f74b8;skyMid=0xbcd4ea;skyBot=0xe6eef6;}
   else if(grass){skyTop=0x2f6fc0;skyMid=0x9ec8ee;skyBot=0xe2eef8;}
   const skyMat=new THREE.ShaderMaterial({
@@ -3186,7 +3203,8 @@ function buildEnvironment(scene, env){
   scene.add(new THREE.Mesh(skyGeo,skyMat));
 
   let fogCol=0xc8dcee, fogN=1900, fogF=4400;
-  if(marsh){fogCol=0xc2d2c0;fogN=1100;fogF=3600;}
+  if(forest){fogCol=0x8a929c;fogN=240;fogF=1250;}     // moody overcast haze
+  else if(marsh){fogCol=0xc2d2c0;fogN=1100;fogF=3600;}
   else if(fuji){fogCol=0xcdd9e6;fogN=1500;fogF=4600;}
   else if(grass){fogCol=0xc9def0;fogN=1800;fogF=4600;}
   scene.fog=new THREE.Fog(fogCol,fogN,fogF);
@@ -3194,12 +3212,13 @@ function buildEnvironment(scene, env){
   // big ground (tinted per setting). On elevated tracks the ground is a
   // displaced mesh that follows the track height so the road never floats.
   const gt=tex('grass',grassTex);gt.repeat.set(120,120);
-  let gcol=0xffffff; if(marsh)gcol=0x86a86a; else if(fuji)gcol=0x9a9488; else if(grass)gcol=0xa9c878;
+  let gcol=0xffffff; if(forest)gcol=0x4f7a3e; else if(marsh)gcol=0x86a86a; else if(fuji)gcol=0x9a9488; else if(grass)gcol=0xa9c878;
   const gmat=new THREE.MeshStandardMaterial({map:gt,roughness:1,metalness:0,color:gcol});
   let groundGeo;
   if(TRACK.elev && TRACK.C){
-    groundGeo=new THREE.PlaneGeometry(4000,4000,140,140);
-    const pos=groundGeo.attributes.position, C=TRACK.C, N=TRACK.N, step=Math.max(1,Math.floor(N/240));
+    const res=forest?240:160;
+    groundGeo=new THREE.PlaneGeometry(4000,4000,res,res);
+    const pos=groundGeo.attributes.position, C=TRACK.C, N=TRACK.N, step=Math.max(1,Math.floor(N/360));
     for(let vi=0;vi<pos.count;vi++){
       const wx=pos.getX(vi), wz=-pos.getY(vi);     // local(x,y) -> world(x,z) after the -90° x-rotation
       let bd=1e18, by=0;
