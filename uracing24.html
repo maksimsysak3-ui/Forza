@@ -1629,10 +1629,9 @@ function makeRallyLivery(maskKey){
     x.lineWidth=r*0.14;x.strokeStyle='#d8202a';x.stroke();
     x.fillStyle='#11141b';x.font='900 '+(r*1.3)+'px Arial';x.fillText('7',cx,cy+r*0.05); }
   num(S*0.30,S*0.34,S*0.075); num(S*0.70,S*0.62,S*0.07);
-  // window/dark-detail mask so glass is black
-  if(maskKey && typeof CAR_MASK!=='undefined' && CAR_MASK[maskKey]){
-    x.imageSmoothingEnabled=false; x.drawImage(CAR_MASK[maskKey],0,0,S,S); x.imageSmoothingEnabled=true;
-  }
+  // NOTE: the M4's baked texture is a dark car, so its dark-detail mask would
+  // black out the whole body — we deliberately skip it here and keep the
+  // white/blue/red sponsor livery fully visible.
   const t=new THREE.CanvasTexture(c);t.encoding=THREE.sRGBEncoding;t.anisotropy=4;t.flipY=false;return t;
 }
 
@@ -2292,6 +2291,70 @@ function buildRallyForest(scene,C,N,nrmL,HALF){
   }
   fern.count=fn; fern.receiveShadow=true; scene.add(fern);
 }
+/* roadside life: start/finish gantries, flags, hay bales, marker boards,
+   spectator clusters and scattered boulders */
+function buildRallyProps(scene,C,N,nrmL,tan,HALF){
+  const pY=(x,z,i)=>elevAt(x,z,i);
+  function arch(i,label){
+    const c=C[i],t=tan[i],y=pY(c.x,c.z,i),g=new THREE.Group();
+    g.position.set(c.x,y,c.z); g.rotation.y=Math.atan2(t.x,t.z);
+    const postM=new THREE.MeshStandardMaterial({color:0x20242c,metalness:.4,roughness:.6}), w=HALF+2.5;
+    [-w,w].forEach(sx=>{const p=new THREE.Mesh(new THREE.CylinderGeometry(0.3,0.3,7.5,8),postM);p.position.set(sx,3.75,0);p.castShadow=true;g.add(p);});
+    const beam=new THREE.Mesh(new THREE.BoxGeometry(w*2+0.6,1.3,0.6),postM); beam.position.set(0,7.4,0); g.add(beam);
+    const ban=cvs(256,48),bxx=ban.getContext('2d');bxx.fillStyle='#d8202a';bxx.fillRect(0,0,256,48);
+    bxx.fillStyle='#fff';bxx.font='900 30px Arial';bxx.textAlign='center';bxx.textBaseline='middle';bxx.fillText(label,128,26);
+    const bm=new THREE.Mesh(new THREE.PlaneGeometry(w*2,1.2),new THREE.MeshStandardMaterial({map:new THREE.CanvasTexture(ban),side:THREE.DoubleSide}));
+    bm.position.set(0,7.4,0.36);g.add(bm); scene.add(g);
+  }
+  arch(3,'START'); arch(N-4,'FINISH');
+  // flags lining the route
+  const flagCols=[0xd8202a,0x15489e,0xf4c20d,0xffffff,0x10131b];
+  for(let i=24;i<N-24;i+=44){ const side=(i%88<44)?1:-1, c=C[i],nl=nrmL[i];
+    const x=c.x+nl.x*side*(HALF+2.0), z=c.z+nl.z*side*(HALF+2.0), y=pY(x,z,i), g=new THREE.Group();
+    g.position.set(x,y,z); g.rotation.y=Math.random()*TAU;
+    const pole=new THREE.Mesh(new THREE.CylinderGeometry(0.08,0.08,4,6),new THREE.MeshStandardMaterial({color:0xdddddd}));pole.position.y=2;g.add(pole);
+    const fl=new THREE.Mesh(new THREE.PlaneGeometry(1.4,0.85),new THREE.MeshStandardMaterial({color:flagCols[(i/44|0)%flagCols.length],side:THREE.DoubleSide}));
+    fl.position.set(0.7,3.4,0);g.add(fl); scene.add(g);
+  }
+  // corners: hay bales, marker boards, spectators
+  const hayM=new THREE.MeshStandardMaterial({color:0xc8a24a,roughness:.95});
+  const specCols=[0xd84a3a,0x3a6cc4,0xe6c84a,0xdfe3ea,0x2f7d4a,0x9a5ab0];
+  for(let i=12;i<N-12;i++){
+    const a=tan[i-6]||tan[i], b=tan[i+6]||tan[i], crs=a.x*b.z-a.z*b.x;
+    if(Math.abs(crs)<0.5 || i%16!==0) continue;
+    const side=crs>0?1:-1, c=C[i],nl=nrmL[i], t=tan[i];
+    const ox=c.x+nl.x*side*(HALF+1.4), oz=c.z+nl.z*side*(HALF+1.4), oy=pY(ox,oz,i);
+    for(let k=-1;k<=1;k++){ const hb=new THREE.Mesh(new THREE.CylinderGeometry(0.7,0.7,1.6,12),hayM);
+      hb.rotation.z=Math.PI/2; hb.position.set(ox+t.x*k*1.8, oy+0.7, oz+t.z*k*1.8); hb.castShadow=true; scene.add(hb); }
+    const bd=cvs(64,64),dxx=bd.getContext('2d');dxx.fillStyle='#d8202a';dxx.fillRect(0,0,64,64);
+    dxx.fillStyle='#fff';dxx.font='900 52px Arial';dxx.textAlign='center';dxx.textBaseline='middle';dxx.fillText(side>0?'>':'<',32,36);
+    const bx2=c.x+nl.x*side*(HALF+4.5), bz2=c.z+nl.z*side*(HALF+4.5), by2=pY(bx2,bz2,i);
+    const board=new THREE.Mesh(new THREE.PlaneGeometry(1.7,1.7),new THREE.MeshStandardMaterial({map:new THREE.CanvasTexture(bd),side:THREE.DoubleSide}));
+    board.position.set(bx2,by2+1.7,bz2); board.rotation.y=Math.atan2(t.x,t.z); scene.add(board);
+    for(let k=0;k<6;k++){ const sx=c.x+nl.x*side*(HALF+6+Math.random()*5)+(Math.random()-0.5)*7, sz=c.z+nl.z*side*(HALF+6+Math.random()*5)+(Math.random()-0.5)*7, sy=pY(sx,sz,i);
+      const body=new THREE.Mesh(new THREE.CylinderGeometry(0.22,0.26,1.1,6),new THREE.MeshStandardMaterial({color:specCols[(Math.random()*specCols.length)|0],roughness:.9}));
+      body.position.set(sx,sy+0.55,sz);body.castShadow=true;scene.add(body);
+      const head=new THREE.Mesh(new THREE.SphereGeometry(0.18,8,6),new THREE.MeshStandardMaterial({color:0xe0b48a,roughness:.9}));head.position.set(sx,sy+1.2,sz);scene.add(head);
+    }
+  }
+  // scattered boulders
+  const rockM=new THREE.MeshStandardMaterial({color:0x6b6660,roughness:1,flatShading:true});
+  for(let k=0;k<55;k++){ const i=(Math.random()*N)|0, side=Math.random()<0.5?1:-1, off=HALF+5+Math.random()*45;
+    const c=C[i],nl=nrmL[i], x=c.x+nl.x*side*off, z=c.z+nl.z*side*off;
+    if(globalNearestDist(x,z)<HALF+3) continue;
+    const y=elevAt(x,z,i)-0.5, s=0.6+Math.random()*1.9;
+    const r=new THREE.Mesh(new THREE.DodecahedronGeometry(s,0),rockM); r.position.set(x,y+s*0.4,z);
+    r.rotation.set(Math.random()*3,Math.random()*3,Math.random()*3); r.castShadow=true; scene.add(r); }
+  // ambient drifting motes (pollen/leaves) for atmosphere
+  const MC=500, mg=new THREE.BufferGeometry(), mp=new Float32Array(MC*3);
+  const b=TRACK.C; let mnx=1e9,mxx=-1e9,mnz=1e9,mxz=-1e9;
+  for(let i=0;i<=N;i+=10){mnx=Math.min(mnx,b[i].x);mxx=Math.max(mxx,b[i].x);mnz=Math.min(mnz,b[i].z);mxz=Math.max(mxz,b[i].z);}
+  for(let i=0;i<MC;i++){ mp[i*3]=mnx+Math.random()*(mxx-mnx); mp[i*3+1]=2+Math.random()*22; mp[i*3+2]=mnz+Math.random()*(mxz-mnz); }
+  mg.setAttribute('position',new THREE.BufferAttribute(mp,3));
+  const motes=new THREE.Points(mg,new THREE.PointsMaterial({color:0xdfe6c0,size:0.35,transparent:true,opacity:0.5,depthWrite:false}));
+  motes.frustumCulled=false; scene.add(motes);
+  TRACK.motes={pts:motes,count:MC,box:{mnx,mxx,mnz,mxz}};
+}
 function buildRallyTrack(scene, def){
   const SRC=def.pts, SCALE=def.scale||1.7, amp=def.elevAmp||0.7;
   const xs=SRC.map(p=>p[0]),ys=SRC.map(p=>p[1]);
@@ -2358,6 +2421,7 @@ function buildRallyTrack(scene, def){
     const sm=new THREE.Mesh(sg,new THREE.MeshStandardMaterial({map:new THREE.CanvasTexture(gtex),roughness:.9}));
     sm.rotation.x=-Math.PI/2;sm.rotation.z=Math.atan2(tan[2].x,tan[2].z);sm.position.set(c.x,c.y+0.55,c.z);scene.add(sm); }
   buildRallyForest(scene,C,N,nrmL,HALF);
+  buildRallyProps(scene,C,N,nrmL,tan,HALF);
   return TRACK;
 }
 function buildTrack(scene, def){
@@ -4690,6 +4754,12 @@ function rallyUpdate(dt){
       if(nw!==RALLY.weather){ RALLY.weather=nw; setWeather(nw); rallyFlash('WEATHER: '+nw.toUpperCase(), nw==='clear'?'good':'bad'); } }
   }
   updateWeatherParticles(dt);
+  // ---- ambient drifting motes ----
+  if(TRACK.motes){ const m=TRACK.motes, p=m.pts.geometry.attributes.position, bx=m.box, tt=performance.now()*0.0005;
+    for(let i=0;i<m.count;i++){ let y=p.getY(i)+ (0.3+Math.sin(i)*0.2)*dt*6;
+      let x=p.getX(i)+Math.sin(tt+i)*4*dt;
+      if(y>26){ y=2; } p.setY(i,y); p.setX(i,x); }
+    p.needsUpdate=true; }
   // ---- dirt spray when moving on the loose surface ----
   if(sim.speed>6 && sim.surf!=='grass'){ const f=sim.fwd();
     spawnDirt(sim.x - f[0]*1.6, elevAt(sim.x,sim.z,seg), sim.z - f[1]*1.6, f); }
@@ -5725,7 +5795,8 @@ function raceUpdate(dt){
   }
   const _hop=(typeof RALLY!=='undefined'&&RALLY.active&&RALLY.airT>0)?Math.sin((1-RALLY.airT/RALLY.airDur)*Math.PI)*RALLY.airH:0;
   raceCar.root.position.y=elevAt(sim.x,sim.z,sim.seg) + sim.kerbLift*0.10 + vib + sim.bump*0.04 + liftY + _hop;
-  if(_hop>0) raceCar.root.rotation.x=-0.10*Math.cos((1-RALLY.airT/RALLY.airDur)*Math.PI);
+  // pitch only while airborne; always reset so the car never stays tilted
+  raceCar.root.rotation.x = _hop>0 ? -0.12*Math.cos((1-RALLY.airT/RALLY.airDur)*Math.PI) : 0;
   // little body roll into the lift so it reads as climbing the kerb (or tipping for the bubble car)
   raceCar.root.rotation.z=rollZ;
   spinWheelsVisual(raceCar,sim.wheelSpin, sim.steerVis*0.5);
