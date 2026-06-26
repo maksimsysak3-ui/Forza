@@ -3534,7 +3534,7 @@ const PHYS={
   gripTarmac:4.2,       // low grip -> the car genuinely slides; you must manage it
   gripGrass:1.3,        // grass is treacherous
   gripKerb:3.7,         // kerbs really unsettle the car
-  handbrakeGrip:0.5,    // grip while the handbrake is yanked (rear breaks loose to slide)
+  handbrakeGrip:0.28,   // grip while the handbrake is yanked (rear breaks right loose to slide)
   driftAngleCap:1.3,    // bigger angles possible -> easier to spin
   counterAssist:0.3,    // barely any invisible help -> you must catch slides
   exitBoost:3.5,
@@ -3597,7 +3597,8 @@ class CarSim{
     // handbrake (Shift) OVERRIDES throttle: scrubs speed hard even while you hold W,
     // so you can brake/slide and keep your finger on the gas mid-corner
     if(handbrake){
-      if(vf>0){ vf-=brakeDec*1.15*dt; if(vf<0)vf=0; }
+      // handbrake scrubs speed (less than a full brake so you keep momentum to slide)
+      if(vf>0){ vf-=brakeDec*0.55*dt; if(vf<0)vf=0; }
       else if(vf<0){ vf+=brakeDec*dt; if(vf>0)vf=0; }
     }
     // brake takes priority over throttle, so you can brake (Space/Down) while still holding W
@@ -3617,7 +3618,9 @@ class CarSim{
 
     // ---- heading change from steering (only meaningful while moving) ----
     const moveSign=vf>=0?1:-1;
-    const turnRate=this.steer*steerAuth*clamp(Math.abs(vf)/8,0,1)*moveSign;
+    // handbrake kicks the tail out — sharper rotation so it slides instead of just braking
+    const hbKick=handbrake?1.7:1;
+    const turnRate=this.steer*steerAuth*hbKick*clamp(Math.abs(vf)/8,0,1)*moveSign;
     this.heading+=turnRate*dt;
 
     // ---- lateral grip / drift ----
