@@ -633,7 +633,9 @@
   #hud.kart .turbo-tag, #hud.kart .fuel, #hud.kart .dmgbox{display:none!important}
   /* Delivery Dash overlay */
   .dd{display:none;position:absolute;inset:0;pointer-events:none;z-index:7}
-  #hud.delivery .dd{display:block}
+  #hud.delivery .dd#dd{display:block}
+  #hud.rally #rally{display:block}
+  #hud.rally .fuel,#hud.rally .turbo-tag,#hud.rally .hud-timing,#hud.rally .sectors{display:none!important}
   #hud.delivery .fuel,#hud.delivery .turbo-tag,#hud.delivery .hud-timing,#hud.delivery .sectors{display:none!important}
   .dd-top{position:absolute;top:18px;left:50%;transform:translateX(-50%);display:flex;gap:14px;align-items:stretch}
   .dd-obj{background:linear-gradient(180deg,rgba(14,18,30,.92),rgba(9,11,20,.92));
@@ -799,6 +801,20 @@
         </div>
       </div>
       <div class="dd-flash" id="ddFlash"></div>
+    </div>
+
+    <!-- Rally Stage HUD -->
+    <div class="dd" id="rally">
+      <div class="dd-top">
+        <div class="dd-obj" style="border-left-color:#7a5a3a"><span>RALLY STAGE</span><b id="rallyWeather">CLEAR</b></div>
+        <div class="dd-meta">
+          <div class="dd-clock"><span>TIME</span><b id="rallyTime">0:00</b></div>
+          <div class="dd-score"><span>STAGE</span><b id="rallyProg">0%</b></div>
+          <div id="rallyDriftWrap" style="display:none"><div class="dd-score"><span>DRIFT</span><b id="rallyDrift">0</b></div></div>
+          <div id="rallyPosWrap" style="display:none"><div class="dd-score"><span>POS</span><b id="rallyPos">P1/1</b></div></div>
+        </div>
+      </div>
+      <div class="dd-flash" id="rallyFlash"></div>
     </div>
 
     <div class="raceflash" id="raceflash">3</div>
@@ -1005,6 +1021,7 @@
       <div class="ch-modes">
         <button class="ch-mode active" data-cmode="kart">🏁 GO KART MANIA</button>
         <button class="ch-mode" data-cmode="delivery">📦 DELIVERY DASH</button>
+        <button class="ch-mode" data-cmode="rally">🌲 RALLY STAGE</button>
       </div>
       <div class="ch-list" id="chList"></div>
     </div>
@@ -3489,6 +3506,7 @@ class CarSim{
     if(this.surf==='grass')grip=PHYS.gripGrass;
     else if(this.surf==='kerb')grip=PHYS.gripKerb;
     else grip=PHYS.gripTarmac*T.grip;
+    grip*=(window.weatherGrip||1);            // rain/snow make the surface slippery
     if(handbrake)grip=Math.min(grip,PHYS.handbrakeGrip);
     // snap oversteer when entering too hot: high speed + strong steer reduces grip
     const aggression=Math.abs(this.steer)*sp01;
@@ -4227,6 +4245,29 @@ function buildChallengesTab(){
     });
     return;
   }
+  if(chMode==='rally'){
+    const lbl={drift:'DRIFT',weather:'WEATHER',opposition:'OPPOSITION'};
+    const sub={drift:'Drift Mode — score points sliding through the pines',
+               weather:'Weather Mode — battle rain, snow and fog',
+               opposition:'Opposition — beat the rival rally cars to the finish'};
+    ['drift','weather','opposition'].forEach(sm=>{
+      const h=document.createElement('div'); h.className='ch-group-h';
+      h.textContent='Black Pine Stage · '+sub[sm]; host.appendChild(h);
+      RALLY_CHALLENGES.filter(c=>c.mode===sm).forEach(ch=>{
+        const done=chDone(ch.id), r=ch.reward||{}, rew=[];
+        if(r.money)rew.push(fmtMoney(r.money)); if(r.rp)rew.push(r.rp+' RP'); if(r.spares)rew.push(r.spares+' spare'+(r.spares>1?'s':''));
+        const card=document.createElement('div'); card.className='ch-card'+(done?' done':'');
+        card.innerHTML=`<span class="ch-type" style="background:#7a5a3a">${lbl[sm]}</span>
+          <div class="ch-main"><div class="ch-name">${ch.title}</div>
+            <div class="ch-desc">${ch.desc}</div>
+            <div class="ch-rew">Reward: ${rew.join(' · ')}</div></div>
+          <button class="ch-go${done?'':''}">${done?'✓ REPLAY':'START'}</button>`;
+        card.querySelector('.ch-go').onclick=()=>startRallyEvent(ch);
+        host.appendChild(card);
+      });
+    });
+    return;
+  }
   ['kart1','kart2','kart3'].forEach(tk=>{
     const h=document.createElement('div'); h.className='ch-group-h';
     h.textContent=(TRACKS[tk]?TRACKS[tk].name:tk)+' · '+(TRACKS[tk]?TRACKS[tk].blurb:'');
@@ -4504,6 +4545,164 @@ const DELIVERIES=[
   {id:'dd5',title:'Across Town',     desc:'6 deliveries — a true endurance run',deliveries:6,time:345,reward:{rp:36,money:900000}},
   {id:'dd6',title:'Rush Hour',       desc:'7 back-to-back deliveries — the ultimate haul',deliveries:7,time:400,reward:{rp:48,money:1200000}},
 ];
+/* ---- RALLY: open forest stage, 3 sub-modes (drift / weather / opposition) ---- */
+const RALLY_CHALLENGES=[
+  {id:'r_d1',mode:'drift',title:'Forest Slide',   desc:'Score 3,000 drift points down the stage',target:3000,reward:{rp:8,money:200000}},
+  {id:'r_d2',mode:'drift',title:'Sideways Sprint',desc:'Score 6,000 drift points',target:6000,reward:{rp:12,money:320000}},
+  {id:'r_d3',mode:'drift',title:'Drift King',     desc:'Score 10,000 drift points',target:10000,reward:{rp:18,money:500000}},
+  {id:'r_d4',mode:'drift',title:'Pine Drifter',   desc:'Score 14,000 drift points',target:14000,reward:{rp:24,money:720000}},
+  {id:'r_w1',mode:'weather',title:'Rain Run',     desc:'Finish in the rain under 2:10',weather:'rain',target:130,reward:{rp:10,money:260000}},
+  {id:'r_w2',mode:'weather',title:'Snow Storm',   desc:'Finish in the snow under 2:20',weather:'snow',target:140,reward:{rp:14,money:360000}},
+  {id:'r_w3',mode:'weather',title:'Random Skies', desc:'Finish — the weather can change at any time',weather:'random',target:135,reward:{rp:16,money:440000}},
+  {id:'r_w4',mode:'weather',title:'Storm Chaser', desc:'Beat 2:05 whatever the skies throw at you',weather:'random',target:125,reward:{rp:22,money:620000}},
+  {id:'r_o1',mode:'opposition',title:'Club Rally',    desc:'Beat 2 rival rally cars to the finish',ais:2,reward:{rp:10,money:300000}},
+  {id:'r_o2',mode:'opposition',title:'Regional Rally',desc:'Beat 3 rivals to the finish',ais:3,reward:{rp:16,money:460000}},
+  {id:'r_o3',mode:'opposition',title:'National Rally',desc:'Beat 4 rivals to the finish',ais:4,reward:{rp:22,money:640000}},
+  {id:'r_o4',mode:'opposition',title:'Pro Rally Showdown',desc:'Beat 5 rivals to the finish',ais:5,reward:{spares:2,rp:30,money:950000}},
+];
+let RALLY={active:false}, activeRally=null, weatherSys=null;
+window.weatherGrip=1;
+function pickWeather(){ return ['rain','snow','fog','clear'][(Math.random()*4)|0]; }
+function clearWeather(){ if(weatherSys&&weatherSys.points&&weatherSys.points.parent){weatherSys.points.parent.remove(weatherSys.points);} weatherSys=null; window.weatherGrip=1; }
+function setWeather(w){
+  clearWeather();
+  if(!race||!race.scene) return;
+  RALLY.weather=w;
+  // grip + fog per condition
+  if(w==='rain'){ window.weatherGrip=0.72; if(race.scene.fog){race.scene.fog.near=120;race.scene.fog.far=900;race.scene.fog.color.setHex(0x6b7682);} }
+  else if(w==='snow'){ window.weatherGrip=0.6; if(race.scene.fog){race.scene.fog.near=90;race.scene.fog.far=700;race.scene.fog.color.setHex(0xcdd6dd);} }
+  else if(w==='fog'){ window.weatherGrip=0.9; if(race.scene.fog){race.scene.fog.near=40;race.scene.fog.far=320;race.scene.fog.color.setHex(0x9aa6ad);} }
+  else { window.weatherGrip=1; }
+  if(w==='clear') return;
+  // precipitation particle cloud that follows the camera
+  const COUNT = w==='fog'?0:(w==='snow'?1400:2200);
+  if(COUNT>0){
+    const g=new THREE.BufferGeometry(), pos=new Float32Array(COUNT*3);
+    for(let i=0;i<COUNT;i++){ pos[i*3]=(Math.random()-0.5)*220; pos[i*3+1]=Math.random()*120; pos[i*3+2]=(Math.random()-0.5)*220; }
+    g.setAttribute('position',new THREE.BufferAttribute(pos,3));
+    const m=new THREE.PointsMaterial({color: w==='snow'?0xffffff:0xafc4dd, size: w==='snow'?0.5:0.28,
+      transparent:true, opacity: w==='snow'?0.9:0.6, depthWrite:false});
+    const pts=new THREE.Points(g,m); pts.frustumCulled=false; race.scene.add(pts);
+    weatherSys={points:pts, kind:w, count:COUNT, fall: w==='snow'?9:42};
+  } else { weatherSys={kind:w,count:0}; }
+}
+function updateWeatherParticles(dt){
+  if(!weatherSys||!weatherSys.points||!race) return;
+  const p=weatherSys.points.geometry.attributes.position, cam=race.cam, drift=weatherSys.kind==='snow';
+  for(let i=0;i<weatherSys.count;i++){
+    let y=p.getY(i)-weatherSys.fall*dt;
+    let x=p.getX(i)+(drift?Math.sin((performance.now()*0.001)+i)*6*dt:0);
+    if(y<-5){ y=110+Math.random()*10; }
+    p.setY(i,y); p.setX(i,x);
+  }
+  p.needsUpdate=true;
+  weatherSys.points.position.set(cam.position.x, 0, cam.position.z);  // follow the car
+  // wrap particles around the camera in X/Z
+  // (kept simple: the large 220 box keeps them on-screen as the car moves)
+}
+/* dirt spray kicked up behind the wheels on the loose surface */
+let dirtPool=null;
+function ensureDirtPool(){
+  if(dirtPool||!race)return;
+  const N=120, g=new THREE.BufferGeometry(), pos=new Float32Array(N*3);
+  g.setAttribute('position',new THREE.BufferAttribute(pos,3));
+  const m=new THREE.PointsMaterial({color:0x6e5236,size:0.5,transparent:true,opacity:0.8,depthWrite:false});
+  const pts=new THREE.Points(g,m); pts.frustumCulled=false; race.scene.add(pts);
+  dirtPool={pts,N,i:0,life:new Float32Array(N),vel:[]};
+  for(let k=0;k<N;k++){ dirtPool.vel.push([0,0,0]); pos[k*3+1]=-999; }
+}
+function spawnDirt(x,y,z,fwd){
+  if(!dirtPool)return; const d=dirtPool, p=d.pts.geometry.attributes.position;
+  const k=d.i; d.i=(d.i+1)%d.N;
+  p.setXYZ(k,x,y+0.1,z); d.life[k]=0.5;
+  d.vel[k]=[(-fwd[0]+(Math.random()-0.5))*4,(2+Math.random()*3),(-fwd[1]+(Math.random()-0.5))*4];
+}
+function updateDirt(dt){
+  if(!dirtPool)return; const p=dirtPool.pts.geometry.attributes.position;
+  for(let k=0;k<dirtPool.N;k++){ if(dirtPool.life[k]<=0)continue;
+    dirtPool.life[k]-=dt; const v=dirtPool.vel[k]; v[1]-=12*dt;
+    p.setXYZ(k, p.getX(k)+v[0]*dt, Math.max(-998,p.getY(k)+v[1]*dt), p.getZ(k)+v[2]*dt);
+    if(dirtPool.life[k]<=0) p.setY(k,-999);
+  }
+  p.needsUpdate=true;
+}
+function startRallyEvent(ch){
+  activeRally=ch;
+  const wx = ch.mode==='weather' ? (ch.weather==='random'?pickWeather():ch.weather) : 'clear';
+  RALLY={active:true, ch, mode:ch.mode, drift:0, time:0, started:false, finished:false,
+         weather:wx, weatherT:0, airT:0, airDur:0.9, airH:0, _won:false};
+  forceCar='m4';
+  const ais = ch.mode==='opposition' ? (ch.ais||2) : 0;
+  startRace('rally', ais?'race':'solo', 1, ais);
+  document.getElementById('hud').classList.add('rally');
+  dirtPool=null; ensureDirtPool();
+  setWeather(RALLY.weather);
+}
+function rallyFlash(t,cls){ const f=$('#rallyFlash'); if(!f)return; f.textContent=t; f.className='dd-flash show '+(cls||'');
+  clearTimeout(f._t); f._t=setTimeout(()=>f.className='dd-flash',1600); }
+function rallyUpdate(dt){
+  if(!RALLY.active) return;
+  ensureDirtPool();
+  if(raceState==='running' && !RALLY.finished){ RALLY.time+=dt; RALLY.started=true; }
+  // progress along the open stage
+  const N=TRACK.N, seg=sim.seg, prog=seg/N;
+  // ---- weather: random can change mid-stage ----
+  if(RALLY.mode==='weather' && (RALLY.ch.weather==='random')){
+    RALLY.weatherT-=dt;
+    if(RALLY.weatherT<=0){ RALLY.weatherT=8+Math.random()*9; const nw=pickWeather();
+      if(nw!==RALLY.weather){ RALLY.weather=nw; setWeather(nw); rallyFlash('WEATHER: '+nw.toUpperCase(), nw==='clear'?'good':'bad'); } }
+  }
+  updateWeatherParticles(dt);
+  // ---- dirt spray when moving on the loose surface ----
+  if(sim.speed>6 && sim.surf!=='grass'){ const f=sim.fwd();
+    spawnDirt(sim.x - f[0]*1.6, elevAt(sim.x,sim.z,seg), sim.z - f[1]*1.6, f); }
+  updateDirt(dt);
+  // ---- jumps: launch off the humps when fast ----
+  if(RALLY.airT>0){ RALLY.airT-=dt; if(RALLY.airT<=0){ camShake(0.4); rallyFlash('NICE LANDING','good'); } }
+  else if(TRACK.jumps){ for(const ji of TRACK.jumps){ if(Math.abs(seg-ji)<3 && sim.speed>22 && !RALLY._lastJump){
+        RALLY.airT=RALLY.airDur=0.9; RALLY.airH=Math.min(6, sim.speed*0.16); RALLY._lastJump=ji;
+        setTimeout(()=>{RALLY._lastJump=null;},1500); break; } } }
+  // ---- drift scoring ----
+  if(RALLY.mode==='drift'){
+    const sliding=sim.slip>0.35 && sim.speed>10 && sim.surf!=='grass';
+    if(sliding){ RALLY.drift += sim.slip*sim.speed*dt*4.0; }
+  }
+  // ---- HUD ----
+  const mm=Math.floor(RALLY.time/60), ss=Math.floor(RALLY.time%60);
+  if($('#rallyTime'))$('#rallyTime').textContent=mm+':'+(ss<10?'0':'')+ss;
+  if($('#rallyProg'))$('#rallyProg').textContent=Math.min(100,Math.round(prog*100))+'%';
+  const wEl=$('#rallyWeather'); if(wEl)wEl.textContent=(RALLY.weather||'clear').toUpperCase();
+  const dWrap=$('#rallyDriftWrap'); if(dWrap)dWrap.style.display=RALLY.mode==='drift'?'block':'none';
+  if(RALLY.mode==='drift'&&$('#rallyDrift'))$('#rallyDrift').textContent=Math.round(RALLY.drift);
+  const pWrap=$('#rallyPosWrap'); if(pWrap)pWrap.style.display=(RALLY.mode==='opposition'&&ais.length)?'block':'none';
+  if(RALLY.mode==='opposition'&&ais.length){ updateBattleHud&&updateBattleHud();
+    if($('#rallyPos'))$('#rallyPos').textContent='P'+(sim._racePos||1)+'/'+(sim._raceTotal||1); }
+  // ---- finish at the end of the stage ----
+  if(!RALLY.finished && seg>=N-4){ finishRally(); }
+}
+function finishRally(){
+  RALLY.finished=true; raceState='finished';
+  const ch=RALLY.ch||{}, parts=[]; let win=true;
+  if(RALLY.mode==='drift'){ win = RALLY.drift>=(ch.target||0); }
+  else if(RALLY.mode==='weather'){ win = RALLY.time<=(ch.target||999); }
+  else if(RALLY.mode==='opposition'){ win = (sim._racePos||9)<=1; }
+  if(win){
+    ensureEconomy(GAME.team); const r=ch.reward||{};
+    if(r.rp){GAME.team.rp+=r.rp;parts.push(r.rp+' RP');}
+    if(r.money){GAME.team.money+=r.money;parts.push(fmtMoney(r.money));}
+    if(r.spares){GAME.team.spares=(GAME.team.spares||0)+r.spares;parts.push(r.spares+' spare'+(r.spares>1?'s':''));}
+    GAME.team.challenges=GAME.team.challenges||[]; if(!GAME.team.challenges.includes(ch.id))GAME.team.challenges.push(ch.id);
+    writeSave({team:GAME.team});
+    flash('STAGE COMPLETE'); rallyFlash('FINISHED — '+parts.join(' · '),'good');
+  } else {
+    let why = RALLY.mode==='drift' ? ('Need '+ch.target+' drift pts — got '+Math.round(RALLY.drift))
+            : RALLY.mode==='weather' ? ('Target '+ch.target+'s — your time '+Math.round(RALLY.time)+'s')
+            : ('Finished P'+(sim._racePos||'?'));
+    flash('STAGE OVER'); rallyFlash(why,'bad');
+  }
+  setTimeout(()=>{ document.getElementById('hud').classList.remove('rally'); clearWeather(); dirtPool=null;
+    RALLY={active:false}; activeRally=null; forceCar=null; exitRace(); }, 2800);
+}
 const UNLOCK_COST=100;
 function chDone(id){ return (GAME.team.challenges||[]).includes(id); }
 function startChallenge(ch){
@@ -5071,7 +5270,7 @@ function startRace(trackKey,mode,laps,numAIs,gridOrder){
     if(slot===playerSlot) slot++;        // skip the player's slot
     const col=AI_COLORS[n%AI_COLORS.length];
     const team={name:'GT '+col[2],color:col[0],accent:col[1],number:col[2],logo:col[3],
-      car:kartDrive?'gokart':undefined};
+      car:kartDrive?'gokart':(TRACK.rally?'m4':undefined)};
     const car=makeCar(team); race.scene.add(car.root);
     const s=new CarSim(); s.reset(8);
     // per-AI pace spread: front runners a touch quicker, back markers slower (+ jitter)
@@ -5366,7 +5565,7 @@ function aiControl(ai,opp,dt){
 
   // ---- steer toward a lookahead point on the line (capped so it never aims past a corner) ----
   const la=Math.round(clamp(4+spd*0.32, 4, 16));
-  const ti=(i+la)%N, nl=nrmL[ti];
+  const ti=TRACK.open?Math.min(i+la,N):(i+la)%N, nl=nrmL[ti];
   const tx=C[ti].x+nl.x*ai.aiOffset, tz=C[ti].z+nl.z*ai.aiOffset;
   let dh=Math.atan2(tx-ai.x,tz-ai.z)-ai.heading;
   while(dh>Math.PI)dh-=TAU; while(dh<-Math.PI)dh+=TAU;
@@ -5486,7 +5685,9 @@ function raceUpdate(dt){
       liftY = Math.sin(pr*Math.PI)*0.5; }
     else { rollZ += -sim.flipDir*0 + (sim.tip||0)*0.35*Math.sign(sim.steerVis||1); } // lean in corners
   }
-  raceCar.root.position.y=elevAt(sim.x,sim.z,sim.seg) + sim.kerbLift*0.10 + vib + sim.bump*0.04 + liftY;
+  const _hop=(typeof RALLY!=='undefined'&&RALLY.active&&RALLY.airT>0)?Math.sin((1-RALLY.airT/RALLY.airDur)*Math.PI)*RALLY.airH:0;
+  raceCar.root.position.y=elevAt(sim.x,sim.z,sim.seg) + sim.kerbLift*0.10 + vib + sim.bump*0.04 + liftY + _hop;
+  if(_hop>0) raceCar.root.rotation.x=-0.10*Math.cos((1-RALLY.airT/RALLY.airDur)*Math.PI);
   // little body roll into the lift so it reads as climbing the kerb (or tipping for the bubble car)
   raceCar.root.rotation.z=rollZ;
   spinWheelsVisual(raceCar,sim.wheelSpin, sim.steerVis*0.5);
@@ -5526,6 +5727,20 @@ function raceUpdate(dt){
     $('#gear').textContent=sim.speed<0.5?'N':((sim.fwd()[0]*sim.vx+sim.fwd()[1]*sim.vz)<-0.5?'R':'D');
     if(typeof cityUpdate==='function') cityUpdate(dt);
     if(typeof drawCityMinimap==='function') drawCityMinimap();
+    updateChaseCam(dt,sp01);
+    updateDamageHud();
+    audioUpdate(sp01, clamp(sim.slip,0,1), Input.throttle>0.1);
+    return;
+  }
+
+  // rally open stage — drift/weather/opposition; drives its own HUD + finish
+  if(TRACK.rally && typeof RALLY!=='undefined' && RALLY.active){
+    const sp01=sim._sp01||0;
+    $('#spd').textContent=Math.round(sim.speed*3.6);
+    const gf=$('#gFill'); if(gf){ gf.style.strokeDasharray=(sp01*396).toFixed(1)+' 528';
+      gf.style.stroke = sp01>0.82?'#ff3b3b':sp01>0.55?'#ffc24d':'#5ef08a'; }
+    $('#gear').textContent=sim.speed<0.5?'N':((sim.fwd()[0]*sim.vx+sim.fwd()[1]*sim.vz)<-0.5?'R':'D');
+    rallyUpdate(dt);
     updateChaseCam(dt,sp01);
     updateDamageHud();
     audioUpdate(sp01, clamp(sim.slip,0,1), Input.throttle>0.1);
