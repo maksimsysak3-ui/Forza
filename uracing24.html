@@ -1230,7 +1230,7 @@ const KART3_PTS=[
 
 const TRACKS = {
   nurburgring:{ name:'Nürburgring', country:'Germany', color:'#d11f2a',
-    pts:TRACK_PTS, scale:1.75, env:'alpine',
+    pts:TRACK_PTS, scale:1.75, env:'alpine', gimmick:'elevation', elevAmp:0.5,
     sponsors:[ {name:'NORDWERK', color:'#d11f2a'},
                {name:'EIFEL OIL', color:'#f4c20d'},
                {name:'GREENHELL', color:'#1ec96b'} ],
@@ -1254,7 +1254,7 @@ const TRACKS = {
     stand:{ roof:'#b8202a', frame:'#eef1f5', tiers:6, W:28, roofType:'pagoda',
             banner:['#ffffff','#e23b3b','#ff77a9'], crowd:['#e23b3b','#ffffff','#ff9ebf','#e6e9f0','#d12f3a'] } },
   roadamerica:{ name:'Road America', country:'United States', color:'#2f8f4e',
-    pts:RA_PTS, scale:1.55, env:'grassland',
+    pts:RA_PTS, scale:1.55, env:'grassland', gimmick:'elevation', elevAmp:0.55,
     sponsors:[ {name:'HEARTLAND', color:'#2f8f4e'},
                {name:'PRAIRIE FUEL', color:'#f4a300'},
                {name:'STARS RACING', color:'#3b6cff'} ],
@@ -1262,7 +1262,7 @@ const TRACKS = {
     stand:{ roof:'#2a3f7a', frame:'#9a7a4e', tiers:5, W:32, roofType:'bleacher',
             banner:['#b22234','#ffffff','#3c3b6e'], crowd:['#c4452f','#dfe3ea','#3a6cc4','#e6c84a','#cfd4dd'] } },
   chuckwalla:{ name:'Chuckwalla Valley', country:'United States', color:'#e08a2a',
-    pts:CHUCK_PTS, scale:1.6, env:'grassland',
+    pts:CHUCK_PTS, scale:1.6, env:'grassland', gimmick:'elevation', elevAmp:0.5,
     sponsors:[ {name:'DESERT FUEL', color:'#e08a2a'},
                {name:'MOJAVE', color:'#c9542a'},
                {name:'SUNBELT', color:'#f4c20d'} ],
@@ -2106,7 +2106,8 @@ function buildTrack(scene, def){
   const ELEV=def.gimmick==='elevation';
   const pts=SRC.map((p,i)=>{
     let y=0;
-    if(ELEV){ const f=i/SRC.length; y=Math.sin(f*Math.PI*4)*7.5 + Math.sin(f*Math.PI*7+1.3)*3.5 + Math.sin(f*Math.PI*2)*4; }
+    if(ELEV){ const f=i/SRC.length, amp=def.elevAmp||1;
+      y=(Math.sin(f*Math.PI*4)*7.5 + Math.sin(f*Math.PI*7+1.3)*3.5 + Math.sin(f*Math.PI*2)*4)*amp; }
     return new THREE.Vector3((p[0]-cx)*SCALE,y,(p[1]-cy)*SCALE);
   });
   const curve=new THREE.CatmullRomCurve3(pts,true,'catmullrom',0.5);
@@ -2180,8 +2181,9 @@ function buildTrack(scene, def){
     for(let i=0;i<=N;i++){
       const c=C[i%N],nl=nrmL[i];
       const o1=HALF-inset, o2=HALF-inset-w;
-      ep.push(c.x+nl.x*sideSign*o1,0.12,c.z+nl.z*sideSign*o1,
-              c.x+nl.x*sideSign*o2,0.12,c.z+nl.z*sideSign*o2);
+      const ey=(c.y||0)+0.12;
+      ep.push(c.x+nl.x*sideSign*o1,ey,c.z+nl.z*sideSign*o1,
+              c.x+nl.x*sideSign*o2,ey,c.z+nl.z*sideSign*o2);
     }
     for(let i=0;i<N;i++){const a=i*2;eidx.push(a,a+1,a+2,a+1,a+3,a+2);}
     const g=new THREE.BufferGeometry();
@@ -2196,7 +2198,7 @@ function buildTrack(scene, def){
 
   // center racing line (faint)
   const lineG=new THREE.BufferGeometry();const lp=[];
-  for(let i=0;i<=N;i++){const c=C[i%N];lp.push(c.x,0.13,c.z);}
+  for(let i=0;i<=N;i++){const c=C[i%N];lp.push(c.x,(c.y||0)+0.13,c.z);}
   lineG.setAttribute('position',new THREE.Float32BufferAttribute(lp,3));
   scene.add(new THREE.Line(lineG,new THREE.LineBasicMaterial({color:0x6a6d75,transparent:true,opacity:.35})));
 
@@ -2211,7 +2213,7 @@ function buildTrack(scene, def){
     const sm=new THREE.Mesh(sg,new THREE.MeshStandardMaterial({map:ft,roughness:.9}));
     sm.rotation.x=-Math.PI/2;
     sm.rotation.z=Math.atan2(tan[0].x,tan[0].z);
-    sm.position.set(c.x,0.13,c.z);scene.add(sm);
+    sm.position.set(c.x,(c.y||0)+0.13,c.z);scene.add(sm);
   }
 
   // ---- KERBS (elevated red/white, on BOTH edges of every corner) ----
@@ -2334,7 +2336,7 @@ function buildTrack(scene, def){
   const capMat=new THREE.MeshStandardMaterial({color:0xced3da,metalness:.2,roughness:.6,side:THREE.DoubleSide});
   function offPt(i,sideSign){
     const d=(sideSign>0?woffL:woffR)[i], c=C[i%N], nl=nrmL[i];
-    return new THREE.Vector3(c.x+nl.x*sideSign*d,0,c.z+nl.z*sideSign*d);
+    return new THREE.Vector3(c.x+nl.x*sideSign*d,(c.y||0),c.z+nl.z*sideSign*d);
   }
   // ---- pick the longest straight (no wrap) for the pit complex ----
   let bestA=10,bestLen=0,curA=0;
@@ -2357,11 +2359,11 @@ function buildTrack(scene, def){
       for(let k=0;k<P.length;k++){
         if(k>0) acc+=P[k].distanceTo(P[k-1]);
         const p=P[k];
-        wp.push(p.x,0,p.z, p.x,wallH,p.z);
+        wp.push(p.x,p.y,p.z, p.x,p.y+wallH,p.z);
         // UV by real distance so panels are a fixed size; sign flips on the
         // right wall so the text reads forward (not mirrored) on both sides
         const u=acc/PANEL; wuv.push(u,0, u,1);
-        cp.push(p.x,wallH,p.z, p.x,wallH+capH,p.z);
+        cp.push(p.x,p.y+wallH,p.z, p.x,p.y+wallH+capH,p.z);
       }
       for(let k=0;k<P.length-1;k++){
         const gi=i0+k;
@@ -2461,6 +2463,19 @@ function trackSample(px,pz,hint){
 }
 /* ----- elevation at a sample (kart 'elevation' tracks; 0 for flat tracks) ----- */
 function segY(seg){ const C=TRACK.C; if(!C)return 0; const c=C[((seg%TRACK.N)+TRACK.N)%TRACK.N]; return c?(c.y||0):0; }
+/* smooth elevation at a world position: interpolate y along the nearest centerline
+   segment so the car climbs/descends continuously instead of stepping per-sample
+   (this removes the elevation "jitter"). Falls back to flat when not elevated. */
+function elevAt(px,pz,seg){
+  const C=TRACK.C,N=TRACK.N; if(!C||!TRACK.elev) return segY(seg);
+  const i=((seg%N)+N)%N, a=C[i], b=C[(i+1)%N], p=C[(i-1+N)%N];
+  function pj(u,v){ const ux=v.x-u.x,uz=v.z-u.z,L2=ux*ux+uz*uz||1;
+    let t=((px-u.x)*ux+(pz-u.z)*uz)/L2; t=t<0?0:(t>1?1:t);
+    const ddx=u.x+ux*t-px, ddz=u.z+uz*t-pz;
+    return {d:ddx*ddx+ddz*ddz, y:(u.y||0)+((v.y||0)-(u.y||0))*t}; }
+  const f=pj(a,b), g=pj(p,a);
+  return f.d<=g.d ? f.y : g.y;
+}
 /* ----- global nearest distance to centerline (for object placement) ----- */
 function globalNearestDist(px,pz){
   const C=TRACK.C,N=TRACK.N;let bd=1e9;
@@ -2924,11 +2939,26 @@ function buildEnvironment(scene, env){
   else if(grass){fogCol=0xc9def0;fogN=1800;fogF=4600;}
   scene.fog=new THREE.Fog(fogCol,fogN,fogF);
 
-  // big ground (tinted per setting)
+  // big ground (tinted per setting). On elevated tracks the ground is a
+  // displaced mesh that follows the track height so the road never floats.
   const gt=tex('grass',grassTex);gt.repeat.set(120,120);
   let gcol=0xffffff; if(marsh)gcol=0x86a86a; else if(fuji)gcol=0x9a9488; else if(grass)gcol=0xa9c878;
-  const ground=new THREE.Mesh(new THREE.PlaneGeometry(4000,4000),
-    new THREE.MeshStandardMaterial({map:gt,roughness:1,metalness:0,color:gcol}));
+  const gmat=new THREE.MeshStandardMaterial({map:gt,roughness:1,metalness:0,color:gcol});
+  let groundGeo;
+  if(TRACK.elev && TRACK.C){
+    groundGeo=new THREE.PlaneGeometry(4000,4000,140,140);
+    const pos=groundGeo.attributes.position, C=TRACK.C, N=TRACK.N, step=Math.max(1,Math.floor(N/240));
+    for(let vi=0;vi<pos.count;vi++){
+      const wx=pos.getX(vi), wz=-pos.getY(vi);     // local(x,y) -> world(x,z) after the -90° x-rotation
+      let bd=1e18, by=0;
+      for(let i=0;i<N;i+=step){const dx=C[i].x-wx,dz=C[i].z-wz,d=dx*dx+dz*dz;if(d<bd){bd=d;by=C[i].y||0;}}
+      pos.setZ(vi, by);                            // local z displacement -> world y
+    }
+    pos.needsUpdate=true; groundGeo.computeVertexNormals();
+  } else {
+    groundGeo=new THREE.PlaneGeometry(4000,4000);
+  }
+  const ground=new THREE.Mesh(groundGeo, gmat);
   ground.rotation.x=-Math.PI/2;ground.position.y=-0.12;ground.receiveShadow=true;ground.renderOrder=0;scene.add(ground);
 
   // marsh water ponds (flat reflective patches)
@@ -5054,9 +5084,9 @@ function raceUpdate(dt){
     if(countdown<=0.2 && _lastN!==0){_lastN=0;flash('GO');}
     if(countdown<=0){raceState='running';lapStart=raceClock=0;}
     // keep cars sitting on the grid (so first-person/chase frames it correctly)
-    raceCar.root.position.set(sim.x,segY(sim.seg),sim.z); raceCar.root.rotation.y=sim.heading;
+    raceCar.root.position.set(sim.x,elevAt(sim.x,sim.z,sim.seg),sim.z); raceCar.root.rotation.y=sim.heading;
     spinWheelsVisual(raceCar,0,0);
-    for(const a of ais){ a.car.root.position.set(a.sim.x,segY(a.sim.seg),a.sim.z); a.car.root.rotation.y=a.sim.heading; }
+    for(const a of ais){ a.car.root.position.set(a.sim.x,elevAt(a.sim.x,a.sim.z,a.sim.seg),a.sim.z); a.car.root.rotation.y=a.sim.heading; }
     // idle cam
     updateChaseCam(dt,0);
     audioUpdate(0,0,false);
@@ -5083,7 +5113,7 @@ function raceUpdate(dt){
       liftY = Math.sin(pr*Math.PI)*0.5; }
     else { rollZ += -sim.flipDir*0 + (sim.tip||0)*0.35*Math.sign(sim.steerVis||1); } // lean in corners
   }
-  raceCar.root.position.y=segY(sim.seg) + sim.kerbLift*0.10 + vib + sim.bump*0.04 + liftY;
+  raceCar.root.position.y=elevAt(sim.x,sim.z,sim.seg) + sim.kerbLift*0.10 + vib + sim.bump*0.04 + liftY;
   // little body roll into the lift so it reads as climbing the kerb (or tipping for the bubble car)
   raceCar.root.rotation.z=rollZ;
   spinWheelsVisual(raceCar,sim.wheelSpin, sim.steerVis*0.5);
@@ -5093,7 +5123,7 @@ function raceUpdate(dt){
   if(ais.length){
     for(const a of ais){
       const _ai=aiControl(a.sim,sim,dt); a.sim._in=_ai; a.sim.update(dt, _ai);
-      a.car.root.position.set(a.sim.x, segY(a.sim.seg) + a.sim.kerbLift*0.10 + a.sim.bump*0.04, a.sim.z);
+      a.car.root.position.set(a.sim.x, elevAt(a.sim.x,a.sim.z,a.sim.seg) + a.sim.kerbLift*0.10 + a.sim.bump*0.04, a.sim.z);
       a.car.root.rotation.y=a.sim.heading;
       a.car.root.rotation.z=-a.sim.steerVis*(a.sim._sp01||0)*0.04;
       spinWheelsVisual(a.car,a.sim.wheelSpin, a.sim.steerVis*0.5);
@@ -5263,7 +5293,7 @@ let _lastN=99;
 let fpView=false, kartDrive=false, bubbleDrive=false;
 function updateChaseCam(dt,sp01){
   const f=sim?sim.fwd():[0,1];
-  const ey0=segY(sim.seg);
+  const ey0=elevAt(sim.x,sim.z,sim.seg);
   if(fpView){
     // first-person cockpit: rigidly locked to the kart — no lean, shake, fov-zoom or
     // lerp drift, so the camera never moves on its own (only the world moves past you).
