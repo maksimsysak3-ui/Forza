@@ -1670,16 +1670,8 @@ function makeCar(team){
     bodyMat=new THREE.MeshStandardMaterial({color:new THREE.Color(isBubble?(CARS[carKey].color):team.color),
       metalness:.3,roughness:.45});
   }else{
-    const tx=(typeof CAR_TEX!=='undefined')&&CAR_TEX[carKey];
-    if(tx){
-      // accurate baked paint from the model's own baseColor (correct colours,
-      // windows, decals, two-tone — authored for this exact UV layout)
-      const img=new Image(); livery=new THREE.Texture(img);
-      livery.flipY=false; livery.encoding=THREE.sRGBEncoding; livery.anisotropy=4;
-      img.onload=()=>{ livery.needsUpdate=true; }; img.src=tx;
-    }else{
-      livery=makeLiveryTexture(team.color,team.accent,team.number,team.livery,cleanUV);
-    }
+    // every car uses the same recolorable procedural livery (2 colours + decals)
+    livery=makeLiveryTexture(team.color,team.accent,team.number,team.livery);
     bodyMat=new THREE.MeshPhysicalMaterial({
       map:livery, color:0xffffff, metalness:.28, roughness:.5,
       clearcoat:.25, clearcoatRoughness:.4, envMapIntensity:0.18
@@ -1716,7 +1708,6 @@ function makeCar(team){
   root.userData.livery=livery; root.userData.carKey=carKey; root.userData.centers=G.centers;
   function setLivery(t){
     if(plain){ if(!isBubble) bodyMat.color.set(t.color); return; }
-    if(typeof CAR_TEX!=='undefined' && CAR_TEX[carKey]) return;   // keep the accurate baked paint
     const old=bodyMat.map;
     bodyMat.map=makeLiveryTexture(t.color,t.accent,t.number,t.livery,cleanUV);
     bodyMat.needsUpdate=true;
