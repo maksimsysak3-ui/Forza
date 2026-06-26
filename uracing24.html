@@ -1340,7 +1340,7 @@ const TRACKS = {
     pts:KART2_PTS, scale:0.34, env:'indoor', half:3.0, gimmick:'thin',
     blurb:'Brutally narrow ribbon of tarmac — millimetre precision.' },
   kart3:{ name:'Vertigo Dome', country:'Karting', color:'#9b51e0', kart:true,
-    pts:KART3_PTS, scale:0.46, env:'indoor', half:4.4, gimmick:'elevation',
+    pts:KART3_PTS, scale:0.46, env:'indoor', half:4.4, gimmick:'elevation', elevAmp:0.12,
     blurb:'Wild banked climbs and plunging drops under the dome.' },
   city:{ name:'Sunnyside City', country:'Delivery', color:'#f4a300', cityMap:true, env:'city',
     blurb:'An open grid of city streets — deliver before the clock runs out.' },
@@ -5358,8 +5358,12 @@ function awardChampionship(){
 // place car for grid slot k (0 = player, front-left), rows of two going backwards
 function gridSlot(k){
   const N=TRACK.N, row=Math.floor(k/2), colSign=(k%2===0)?-1:1;
-  const segI=((8 - row*5)%N+N)%N, nl=TRACK.nrmL[segI], c=TRACK.C[segI];
-  return {x:c.x+nl.x*colSign*3.1, z:c.z+nl.z*colSign*3.1, seg:segI, off:colSign*3.1,
+  const segLen=TRACK._segLen||(TRACK.curve&&TRACK.curve.getLength?TRACK.curve.getLength()/N:4);
+  const rowGap=Math.max(2,Math.round(8/segLen));       // ~8 m between staggered rows
+  const baseSeg=Math.max(4,Math.round(14/segLen));     // grid starts ~14 m back from the line
+  const segI=((baseSeg - row*rowGap)%N+N)%N, nl=TRACK.nrmL[segI], c=TRACK.C[segI];
+  const off=colSign*Math.min(3.1, TRACK.HALF*0.5);     // keep cars inside the track (narrow karts!)
+  return {x:c.x+nl.x*off, z:c.z+nl.z*off, seg:segI, off,
     heading:Math.atan2(TRACK.tan[segI].x,TRACK.tan[segI].z)};
 }
 function clearAIs(){ for(const a of ais){ if(a.car&&a.car.root.parent)race.scene.remove(a.car.root); } ais=[]; }
@@ -5689,39 +5693,48 @@ function aiControl(ai,opp,dt){
   if(dseg<0 && dseg>-14 && dist<22) target=clamp(-Math.sign(oppLat||1)*HALF*0.42,-HALF*0.5,HALF*0.5);
   ai.aiOffset=lerp(ai.aiOffset||0,target,1-Math.exp(-2.5*dt));
 
-  // ---- upcoming curvature over a moderate, speed-scaled braking window ----
-  const lookM=12+spd*1.3;                                 // ~ braking distance (m), grows gently
-  const lookN=Math.min(N-2,Math.max(6,Math.round(lookM/segLen)));
-  let curve=0;
-  for(let k=2;k<=lookN;k++){const a=tan[(i+k)%N],b=tan[(i+k-2+N)%N];curve+=Math.abs(a.x*b.z-a.z*b.x);}
-  const cornerSpeed=clamp(topV*(1-curve*0.55), 16, topV);   // brake for the turn, but keep racing pace
+  // ---- sharpest upcoming curvature within a braking distance, measured PER METRE
+  //      (scale-independent so it works on huge circuits AND tiny kart tracks) ----
+  const lookM=8+spd*spd*0.05;
+  const lookN=Math.min(N-2,Math.max(4,Math.round(lookM/segLen)));
+  let maxC=0;
+  for(let k=1;k<=lookN;k++){ const a=tan[(i+k)%N],b=tan[(i+k-1+N)%N];
+    const cc=Math.abs(a.x*b.z-a.z*b.x)/segLen; if(cc>maxC)maxC=cc; }
+  // safe corner speed v = sqrt(lateralAccel / curvature); narrower tracks (karts)
+  // get a lower lateral-accel budget so the AI doesn't overshoot into the walls
+  const latAcc=clamp(7+HALF*0.9, 9, 18);
+  const cornerSpeed = maxC>1e-4 ? clamp(Math.sqrt(latAcc/maxC), 7, topV) : topV;
 
-  // ---- steer toward a lookahead point on the line (capped so it never aims past a corner) ----
-  const la=Math.round(clamp(4+spd*0.32, 4, 16));
+  // ---- steer toward a point ~0.4s ahead on the line (time-based -> scale-free) ----
+  const laM=clamp(spd*0.4+3, 3, 30);
+  const la=Math.max(2,Math.min(N-2,Math.round(laM/segLen)));
   const ti=TRACK.open?Math.min(i+la,N):(i+la)%N, nl=nrmL[ti];
   const tx=C[ti].x+nl.x*ai.aiOffset, tz=C[ti].z+nl.z*ai.aiOffset;
   let dh=Math.atan2(tx-ai.x,tz-ai.z)-ai.heading;
   while(dh>Math.PI)dh-=TAU; while(dh<-Math.PI)dh+=TAU;
-  let steer=clamp(dh*2.2,-1,1);
+  let steer=clamp(dh*2.4,-1,1);
 
   // ---- throttle / brake ----
   let throttle=1,brake=0;
-  if(spd>cornerSpeed+0.5){ brake=clamp((spd-cornerSpeed)/8,0,1); throttle=0; }
-  else if(spd>cornerSpeed-3){ throttle=0.55; }
+  if(spd>cornerSpeed+1){ brake=clamp((spd-cornerSpeed)/8,0,1); throttle=0; }
+  else if(spd>cornerSpeed-2){ throttle=0.5; }
 
-  // ---- recovery: drifting toward the edge -> pull hard to the centre, ease off ----
-  if(Math.abs(aiLat)>HALF*0.62){
-    const back=clamp(-aiLat/HALF,-1.2,1.2);
-    steer=clamp(steer*0.35 + back,-1,1);
-    throttle=Math.min(throttle,0.5);
-    if(Math.abs(aiLat)>HALF) brake=Math.max(brake,0.25);
+  // ---- near a wall: peel off it decisively. Steer hard toward the centre and
+  //      KEEP momentum (no braking against the wall, which is what makes AIs stall) ----
+  if(Math.abs(aiLat)>HALF*0.78){
+    const back=clamp(-aiLat/HALF,-1,1);
+    steer=clamp(steer*0.25 + back*1.0,-1,1);
+    brake=0; throttle=Math.max(0.6,throttle);
+  } else if(Math.abs(aiLat)>HALF*0.6){
+    const back=clamp(-aiLat/HALF,-1,1);
+    steer=clamp(steer*0.6 + back*0.5,-1,1);
   }
-  // ---- fully off the road (on grass): straighten back on at low throttle ----
-  if(ai.surf==='grass'){ const back=clamp(-aiLat/HALF,-1,1); steer=clamp(steer*0.3+back,-1,1); throttle=0.6; brake=0; }
-  // ---- crawling + off-line: get back onto the track instead of stalling ----
-  if(spd<5 && Math.abs(aiLat)>HALF*0.5){ throttle=0.9; brake=0; steer=clamp(-Math.sign(aiLat)*0.9,-1,1); }
+  // ---- off the road (grass): straighten back on ----
+  if(ai.surf==='grass'){ const back=clamp(-aiLat/HALF,-1,1); steer=clamp(steer*0.4+back*0.8,-1,1); throttle=0.7; brake=0; }
+  // ---- stuck/crawling off-line: rejoin instead of stalling ----
+  if(spd<4 && Math.abs(aiLat)>HALF*0.45){ throttle=0.9; brake=0; steer=clamp(-Math.sign(aiLat)*0.8,-1,1); }
   // ---- don't rear-end the player ----
-  if(dseg<0 && dseg>-6 && dist<5.5){ throttle*=0.25; if(dist<3.5) brake=Math.max(brake,0.3); }
+  if(dseg<0 && dseg>-6 && dist<5.5){ throttle*=0.3; if(dist<3.5) brake=Math.max(brake,0.3); }
   return {throttle,brake,steer,handbrake:false};
 }
 function prog(s){ if(s._lastSeg===undefined){s._lastSeg=s.seg;s._laps=0;}
@@ -5846,7 +5859,7 @@ function raceUpdate(dt){
       layCarSkid(a.sim);
     }
     // soft pairwise separation among ALL cars (player + AIs)
-    const cars=[sim].concat(ais.map(a=>a.sim)), MIN=3.0;
+    const cars=[sim].concat(ais.map(a=>a.sim)), MIN=Math.min(3.0, TRACK.HALF*0.7);
     for(let i=0;i<cars.length;i++)for(let j=i+1;j<cars.length;j++){
       const A=cars[i],B=cars[j],ddx=A.x-B.x,ddz=A.z-B.z,dd=Math.hypot(ddx,ddz);
       if(dd<MIN && dd>0.001){
