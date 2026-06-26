@@ -2295,6 +2295,7 @@ function buildRallyForest(scene,C,N,nrmL,HALF){
    spectator clusters and scattered boulders */
 function buildRallyProps(scene,C,N,nrmL,tan,HALF){
   const pY=(x,z,i)=>elevAt(x,z,i);
+  TRACK.specs=[]; TRACK.flags=[];
   function arch(i,label){
     const c=C[i],t=tan[i],y=pY(c.x,c.z,i),g=new THREE.Group();
     g.position.set(c.x,y,c.z); g.rotation.y=Math.atan2(t.x,t.z);
@@ -2314,7 +2315,7 @@ function buildRallyProps(scene,C,N,nrmL,tan,HALF){
     g.position.set(x,y,z); g.rotation.y=Math.random()*TAU;
     const pole=new THREE.Mesh(new THREE.CylinderGeometry(0.08,0.08,4,6),new THREE.MeshStandardMaterial({color:0xdddddd}));pole.position.y=2;g.add(pole);
     const fl=new THREE.Mesh(new THREE.PlaneGeometry(1.4,0.85),new THREE.MeshStandardMaterial({color:flagCols[(i/44|0)%flagCols.length],side:THREE.DoubleSide}));
-    fl.position.set(0.7,3.4,0);g.add(fl); scene.add(g);
+    fl.position.set(0.7,3.4,0);g.add(fl); scene.add(g); TRACK.flags.push({m:fl,ph:Math.random()*TAU});
   }
   // corners: hay bales, marker boards, spectators
   const hayM=new THREE.MeshStandardMaterial({color:0xc8a24a,roughness:.95});
@@ -2335,6 +2336,7 @@ function buildRallyProps(scene,C,N,nrmL,tan,HALF){
       const body=new THREE.Mesh(new THREE.CylinderGeometry(0.22,0.26,1.1,6),new THREE.MeshStandardMaterial({color:specCols[(Math.random()*specCols.length)|0],roughness:.9}));
       body.position.set(sx,sy+0.55,sz);body.castShadow=true;scene.add(body);
       const head=new THREE.Mesh(new THREE.SphereGeometry(0.18,8,6),new THREE.MeshStandardMaterial({color:0xe0b48a,roughness:.9}));head.position.set(sx,sy+1.2,sz);scene.add(head);
+      TRACK.specs.push({m:body,h:head,y0:sy+0.55,hy0:sy+1.2,ph:Math.random()*TAU});
     }
   }
   // scattered boulders
@@ -2354,6 +2356,16 @@ function buildRallyProps(scene,C,N,nrmL,tan,HALF){
   const motes=new THREE.Points(mg,new THREE.PointsMaterial({color:0xdfe6c0,size:0.35,transparent:true,opacity:0.5,depthWrite:false}));
   motes.frustumCulled=false; scene.add(motes);
   TRACK.motes={pts:motes,count:MC,box:{mnx,mxx,mnz,mxz}};
+  // birds circling overhead
+  const birds=[], birdM=new THREE.MeshStandardMaterial({color:0x1c2026,roughness:.85});
+  const ccx=(mnx+mxx)/2, ccz=(mnz+mxz)/2;
+  for(let k=0;k<8;k++){ const g=new THREE.Group();
+    const wl=new THREE.Mesh(new THREE.BoxGeometry(1.6,0.07,0.5),birdM); wl.position.x=-0.8; wl.rotation.z=0.4; g.add(wl);
+    const wr=new THREE.Mesh(new THREE.BoxGeometry(1.6,0.07,0.5),birdM); wr.position.x=0.8; wr.rotation.z=-0.4; g.add(wr);
+    scene.add(g);
+    birds.push({g,wl,wr,r:50+Math.random()*150,a:Math.random()*TAU,sp:0.18+Math.random()*0.28,h:34+Math.random()*30,ph:Math.random()*TAU});
+  }
+  TRACK.birds={list:birds,cx:ccx,cz:ccz};
 }
 function buildRallyTrack(scene, def){
   const SRC=def.pts, SCALE=def.scale||1.7, amp=def.elevAmp||0.7;
@@ -3522,7 +3534,7 @@ const PHYS={
   gripTarmac:4.2,       // low grip -> the car genuinely slides; you must manage it
   gripGrass:1.3,        // grass is treacherous
   gripKerb:3.7,         // kerbs really unsettle the car
-  handbrakeGrip:0.9,    // grip while drifting
+  handbrakeGrip:0.5,    // grip while the handbrake is yanked (rear breaks loose to slide)
   driftAngleCap:1.3,    // bigger angles possible -> easier to spin
   counterAssist:0.3,    // barely any invisible help -> you must catch slides
   exitBoost:3.5,
@@ -3582,8 +3594,14 @@ class CarSim{
     const effTop=PHYS.topSpeed*T.top*boost;
     const brakeDec=PHYS.brakeDecel*T.brake;
     const accelRate=effTop/PHYS.accelTime*T.accel;
+    // handbrake (Shift) OVERRIDES throttle: scrubs speed hard even while you hold W,
+    // so you can brake/slide and keep your finger on the gas mid-corner
+    if(handbrake){
+      if(vf>0){ vf-=brakeDec*1.15*dt; if(vf<0)vf=0; }
+      else if(vf<0){ vf+=brakeDec*dt; if(vf>0)vf=0; }
+    }
     // brake takes priority over throttle, so you can brake (Space/Down) while still holding W
-    if(input.brake>0.01){
+    else if(input.brake>0.01){
       if(vf>0.2){vf-=brakeDec*input.brake*dt;if(vf<0)vf=0;}
       else if(input.throttle<0.01){vf-=PHYS.reverseSpeed*0.5*dt; if(vf<-PHYS.reverseSpeed)vf=-PHYS.reverseSpeed;}
       else{ if(vf<0)vf=0; }   // throttle+brake held at a stop -> just hold still, no reverse
@@ -4760,6 +4778,13 @@ function rallyUpdate(dt){
       let x=p.getX(i)+Math.sin(tt+i)*4*dt;
       if(y>26){ y=2; } p.setY(i,y); p.setX(i,x); }
     p.needsUpdate=true; }
+  // ---- living scenery: birds, bobbing spectators, waving flags ----
+  const _tt=performance.now()*0.001;
+  if(TRACK.birds){ for(const bd of TRACK.birds.list){ bd.a+=bd.sp*dt;
+    const x=TRACK.birds.cx+Math.cos(bd.a)*bd.r, z=TRACK.birds.cz+Math.sin(bd.a)*bd.r, y=bd.h+Math.sin(_tt+bd.ph)*4;
+    bd.g.position.set(x,y,z); bd.g.rotation.y=-bd.a; const fp=Math.sin(_tt*9+bd.ph)*0.6; bd.wl.rotation.z=0.4+fp; bd.wr.rotation.z=-0.4-fp; } }
+  if(TRACK.specs){ for(const s of TRACK.specs){ const b=Math.abs(Math.sin(_tt*3.4+s.ph))*0.13; s.m.position.y=s.y0+b; s.h.position.y=s.hy0+b; } }
+  if(TRACK.flags){ for(const fglag of TRACK.flags){ fglag.m.rotation.y=Math.sin(_tt*2.5+fglag.ph)*0.45; } }
   // ---- dirt spray when moving on the loose surface ----
   if(sim.speed>6 && sim.surf!=='grass'){ const f=sim.fwd();
     spawnDirt(sim.x - f[0]*1.6, elevAt(sim.x,sim.z,seg), sim.z - f[1]*1.6, f); }
@@ -5794,11 +5819,19 @@ function raceUpdate(dt){
     else { rollZ += -sim.flipDir*0 + (sim.tip||0)*0.35*Math.sign(sim.steerVis||1); } // lean in corners
   }
   const _hop=(typeof RALLY!=='undefined'&&RALLY.active&&RALLY.airT>0)?Math.sin((1-RALLY.airT/RALLY.airDur)*Math.PI)*RALLY.airH:0;
-  raceCar.root.position.y=elevAt(sim.x,sim.z,sim.seg) + sim.kerbLift*0.10 + vib + sim.bump*0.04 + liftY + _hop;
-  // pitch only while airborne; always reset so the car never stays tilted
-  raceCar.root.rotation.x = _hop>0 ? -0.12*Math.cos((1-RALLY.airT/RALLY.airDur)*Math.PI) : 0;
-  // little body roll into the lift so it reads as climbing the kerb (or tipping for the bubble car)
-  raceCar.root.rotation.z=rollZ;
+  // ---- weight transfer + suspension: makes the car feel alive ----
+  const _spd=sim.speed; sim._prevSpd=(sim._prevSpd==null)?_spd:sim._prevSpd;
+  const _accelG=(_spd-sim._prevSpd)/Math.max(dt,1e-3); sim._prevSpd=_spd;
+  const _sp01b=sim._sp01||0;
+  const pitch=clamp(-_accelG*0.0045,-0.10,0.10);                 // dive on brakes, squat on power
+  const roll=-(sim.steerVis||0)*_sp01b*0.11 - (sim.slip||0)*Math.sign(sim.steerVis||1)*0.12; // lean into slides
+  let susp=0;
+  if(TRACK.rally && _spd>4){ const r=t*0.021; susp=(Math.sin(r)+Math.sin(r*1.73+1.1))*0.07*clamp(_spd/30,0,1); }
+  raceCar.root.position.y=elevAt(sim.x,sim.z,sim.seg) + sim.kerbLift*0.10 + vib + sim.bump*0.04 + liftY + _hop + susp;
+  // pitch: airborne ramp tilt, otherwise braking/accel weight transfer
+  raceCar.root.rotation.x = _hop>0 ? -0.12*Math.cos((1-RALLY.airT/RALLY.airDur)*Math.PI) : pitch;
+  // body roll into the lift / corner lean (or tipping for the bubble car)
+  raceCar.root.rotation.z=rollZ+roll;
   spinWheelsVisual(raceCar,sim.wheelSpin, sim.steerVis*0.5);
   layCarSkid(sim);
 
