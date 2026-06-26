@@ -1224,6 +1224,26 @@ const BEDFORD_PTS=[
  [813,308],[797,349],[801,365],[828,382],[883,374],[892,388],[883,401],[843,415],
  [755,455],[697,474],[676,478],[669,504],[613,517],[551,525]];
 
+// rally stage (open, terrain) — player-supplied points
+const RALLY_PTS=[
+ [831,704],[733,696],[684,699],[635,711],[608,709],[585,691],[547,668],[503,654],
+ [462,649],[413,657],[358,672],[316,695],[290,711],[282,724],[267,732],[243,728],
+ [236,702],[236,658],[237,594],[252,578],[271,578],[303,597],[357,597],[424,581],
+ [494,551],[543,471],[586,409],[619,372],[633,318],[620,270],[612,235],[636,204],
+ [665,191],[706,189],[754,187],[784,176],[797,154],[788,130],[766,128],[730,137],
+ [677,143],[619,150],[570,174],[539,214],[507,260],[480,309],[489,327],[507,355],
+ [520,374],[523,397],[507,412],[489,428],[477,460],[446,494],[415,515],[374,527],
+ [334,530],[292,512],[250,490],[232,479],[226,459],[259,407],[302,357],[339,325],
+ [387,295],[438,255],[476,207],[495,177],[493,155],[477,143],[456,146],[410,171],
+ [359,200],[316,216],[271,220],[239,204],[224,190],[223,160],[274,95],[351,45],
+ [415,36],[523,42],[581,53],[636,71],[700,79],[778,69],[832,50],[867,45],
+ [902,53],[916,68],[916,94],[898,143],[878,209],[852,226],[813,236],[786,253],
+ [770,291],[738,356],[684,412],[614,492],[595,532],[596,549],[616,561],[673,532],
+ [715,499],[731,471],[753,444],[780,432],[790,403],[791,374],[823,342],[838,294],
+ [858,274],[886,273],[900,280],[909,321],[906,370],[892,422],[866,460],[825,498],
+ [810,521]];
+
+
 // ---- indoor go-kart circuits ----
 const KART1_PTS=[
  [720,519],[549,479],[338,431],[228,404],[197,378],[218,339],[208,309],[219,286],[255,264],[290,265],
@@ -1307,6 +1327,9 @@ const TRACKS = {
     blurb:'Wild banked climbs and plunging drops under the dome.' },
   city:{ name:'Sunnyside City', country:'Delivery', color:'#f4a300', cityMap:true, env:'city',
     blurb:'An open grid of city streets — deliver before the clock runs out.' },
+  rally:{ name:'Black Pine Stage', country:'Rally', color:'#7a5a3a', rally:true, env:'forest',
+    pts:RALLY_PTS, scale:1.7, half:9.0, elevAmp:0.7,
+    blurb:'An open forest rally stage — loose dirt, big jumps and tall pines.' },
 };
 </script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -2206,9 +2229,91 @@ function drawCityMinimap(){
   x.lineWidth=2.5; x.strokeStyle='#0a0d16'; x.stroke();
 }
 
+/* ======================================================================
+   RALLY STAGE — open point-to-point dirt track through a pine forest
+   ====================================================================== */
+function dirtTex(){
+  const s=256,c=cvs(s,s),x=c.getContext('2d');
+  x.fillStyle='#6e5236';x.fillRect(0,0,s,s);
+  for(let i=0;i<4500;i++){x.fillStyle='rgba(0,0,0,'+(Math.random()*.18)+')';x.fillRect(Math.random()*s,Math.random()*s,2,2);}
+  for(let i=0;i<2200;i++){x.fillStyle='rgba(120,92,60,'+(Math.random()*.32)+')';x.fillRect(Math.random()*s,Math.random()*s,3,3);}
+  for(let i=0;i<220;i++){x.fillStyle='rgba(150,142,130,'+(0.2+Math.random()*.3)+')';const r=1+Math.random()*3;x.beginPath();x.arc(Math.random()*s,Math.random()*s,r,0,TAU);x.fill();}
+  const t=new THREE.CanvasTexture(c);t.wrapS=t.wrapT=THREE.RepeatWrapping;return t;
+}
+function buildRallyForest(scene,C,N,nrmL,HALF){
+  const trunkG=new THREE.CylinderGeometry(0.5,0.85,9,7), trunkM=new THREE.MeshStandardMaterial({color:0x49351f,roughness:.95});
+  const leafG=new THREE.ConeGeometry(3.6,10,8), leafM=new THREE.MeshStandardMaterial({color:0x2c5a30,roughness:.9});
+  const leaf2G=new THREE.ConeGeometry(2.6,7,8), leaf2M=new THREE.MeshStandardMaterial({color:0x356b38,roughness:.9});
+  const COUNT=820;
+  const tr=new THREE.InstancedMesh(trunkG,trunkM,COUNT), lf=new THREE.InstancedMesh(leafG,leafM,COUNT), lf2=new THREE.InstancedMesh(leaf2G,leaf2M,COUNT);
+  const o=new THREE.Object3D(); let n=0, tries=0;
+  while(n<COUNT && tries<COUNT*7){ tries++;
+    const i=(Math.random()*N)|0, side=Math.random()<0.5?1:-1, off=HALF+7+Math.random()*150;
+    const c=C[i],nl=nrmL[i], x=c.x+nl.x*side*off, z=c.z+nl.z*side*off;
+    if(globalNearestDist(x,z)<HALF+5) continue;
+    const y=elevAt(x,z,i), sc=0.85+Math.random()*1.25, ry=Math.random()*TAU;
+    o.rotation.set(0,ry,0);
+    o.position.set(x,y+4.5*sc,z); o.scale.set(sc,sc,sc); o.updateMatrix(); tr.setMatrixAt(n,o.matrix);
+    o.position.set(x,y+10*sc,z); o.updateMatrix(); lf.setMatrixAt(n,o.matrix);
+    o.position.set(x,y+13.5*sc,z); o.updateMatrix(); lf2.setMatrixAt(n,o.matrix);
+    n++;
+  }
+  tr.count=lf.count=lf2.count=n; [tr,lf,lf2].forEach(m=>{m.castShadow=true;m.receiveShadow=true;scene.add(m);});
+}
+function buildRallyTrack(scene, def){
+  const SRC=def.pts, SCALE=def.scale||1.7, amp=def.elevAmp||0.7;
+  const xs=SRC.map(p=>p[0]),ys=SRC.map(p=>p[1]);
+  const cx=(Math.min(...xs)+Math.max(...xs))/2, cy=(Math.min(...ys)+Math.max(...ys))/2;
+  const pts=SRC.map((p,i)=>{ const f=i/SRC.length;
+    const y=(Math.sin(f*Math.PI*5)*6 + Math.sin(f*Math.PI*9+1.3)*3 + Math.sin(f*Math.PI*3)*4)*amp;
+    return new THREE.Vector3((p[0]-cx)*SCALE, y, (p[1]-cy)*SCALE); });
+  const curve=new THREE.CatmullRomCurve3(pts,false,'catmullrom',0.5);   // OPEN curve
+  const N=900, C=curve.getSpacedPoints(N), HALF=def.half||9.0, len=curve.getLength();
+  // jumps: sharp local humps the car launches off
+  const jumps=[0.16,0.40,0.63,0.85].map(f=>Math.floor(f*N));
+  jumps.forEach(ji=>{ for(let k=-9;k<=9;k++){ const idx=ji+k; if(idx<1||idx>N-1)continue;
+    const w=1-Math.abs(k)/9; C[idx].y += w*w*5.5; } });
+  TRACK.city=false;TRACK.kart=false;TRACK.elev=true;TRACK.rally=true;TRACK.open=true;
+  TRACK._obstacles=null;TRACK._stands=null;TRACK.kartColor=def.color||'#7a5a3a';
+  const tan=[],nrmL=[];
+  for(let i=0;i<=N;i++){ const a=C[i], b=C[Math.min(i+1,N)];
+    const t=new THREE.Vector3().subVectors(b,a).setY(0);
+    if(t.length()<1e-4){ t.copy(tan[i-1]||new THREE.Vector3(0,0,1)); } t.normalize();
+    tan.push(t); nrmL.push(new THREE.Vector3(-t.z,0,t.x)); }
+  TRACK.C=C;TRACK.N=N;TRACK.tan=tan;TRACK.nrmL=nrmL;TRACK.HALF=HALF;TRACK.KERB_W=0;
+  TRACK.kerbInfo=new Array(N+1).fill(0);
+  TRACK.woffL=new Array(N+1).fill(9999);TRACK.woffR=new Array(N+1).fill(9999);
+  TRACK.SCALE=SCALE;TRACK.jumps=jumps;TRACK.curve={getLength:()=>len};TRACK.curveLen=len;
+  const st=C[2], stt=tan[2];
+  TRACK.start={x:st.x,z:st.z,heading:Math.atan2(stt.x,stt.z)};
+  TRACK.startTangent=Math.atan2(stt.x,stt.z);
+  // ---- dirt road ribbon (follows terrain) ----
+  const pos=[],uv=[],idx=[];
+  for(let i=0;i<=N;i++){ const c=C[i],nl=nrmL[i];
+    pos.push(c.x+nl.x*HALF, c.y+0.06, c.z+nl.z*HALF,  c.x-nl.x*HALF, c.y+0.06, c.z-nl.z*HALF);
+    const v=i/(N/60); uv.push(0,v, 1,v); }
+  for(let i=0;i<N;i++){const a=i*2;idx.push(a,a+1,a+2,a+1,a+3,a+2);}
+  const rg=new THREE.BufferGeometry();
+  rg.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));
+  rg.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));rg.setIndex(idx);rg.computeVertexNormals();
+  const rt=tex('dirt',dirtTex);rt.repeat.set(3,1);
+  const road=new THREE.Mesh(rg,new THREE.MeshStandardMaterial({map:rt,roughness:1,metalness:0,
+    side:THREE.DoubleSide,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-2}));
+  road.receiveShadow=true;road.renderOrder=1;scene.add(road);
+  // start banner stripe
+  { const c=C[2],nl=nrmL[2];
+    const sg=new THREE.PlaneGeometry(HALF*2,3.4);
+    const gtex=cvs(128,32),gx=gtex.getContext('2d');
+    for(let xx=0;xx<128;xx+=16){gx.fillStyle=(xx/16)%2?'#fff':'#11141b';gx.fillRect(xx,0,16,32);}
+    const sm=new THREE.Mesh(sg,new THREE.MeshStandardMaterial({map:new THREE.CanvasTexture(gtex),roughness:.9}));
+    sm.rotation.x=-Math.PI/2;sm.rotation.z=Math.atan2(tan[2].x,tan[2].z);sm.position.set(c.x,c.y+0.12,c.z);scene.add(sm); }
+  buildRallyForest(scene,C,N,nrmL,HALF);
+  return TRACK;
+}
 function buildTrack(scene, def){
   def=def||TRACKS.nurburgring;
   if(def.cityMap){ return buildCity(scene, def); }
+  if(def.rally){ return buildRallyTrack(scene, def); }
   const SRC=def.pts;
   const SCALE=def.scale||1.75;                 // bigger track (scaled up)
   const KART=!!def.kart;
@@ -3027,7 +3132,7 @@ function buildEnvironment(scene, env){
     scene.fog=new THREE.Fog(0xc8dcee, 600, 1600);
     return;
   }
-  const marsh = env==='marsh', fuji=env==='fuji', grass=env==='grassland';
+  const marsh = env==='marsh', fuji=env==='fuji', grass=env==='grassland'||env==='forest';
   // sky dome gradient
   const skyGeo=new THREE.SphereGeometry(2000,32,16);
   let skyTop=0x2a5c9e, skyMid=0x9fc3e8, skyBot=0xdfeaf5;
