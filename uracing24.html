@@ -3600,12 +3600,10 @@ class CarSim{
     const accelRate=effTop/PHYS.accelTime*T.accel;
     // handbrake (Shift) OVERRIDES throttle: scrubs speed hard even while you hold W,
     // so you can brake/slide and keep your finger on the gas mid-corner
-    if(handbrake){
-      // handbrake scrubs speed (less than a full brake so you keep momentum to slide)
+    if(handbrake && !kartDrive){
       if(vf>0){ vf-=brakeDec*0.55*dt; if(vf<0)vf=0; }
       else if(vf<0){ vf+=brakeDec*dt; if(vf>0)vf=0; }
     }
-    // brake takes priority over throttle, so you can brake (Space/Down) while still holding W
     else if(input.brake>0.01){
       if(vf>0.2){vf-=brakeDec*input.brake*dt;if(vf<0)vf=0;}
       else if(input.throttle<0.01){vf-=PHYS.reverseSpeed*0.5*dt; if(vf<-PHYS.reverseSpeed)vf=-PHYS.reverseSpeed;}
@@ -3623,7 +3621,7 @@ class CarSim{
     // ---- heading change from steering (only meaningful while moving) ----
     const moveSign=vf>=0?1:-1;
     // handbrake kicks the tail out — sharper rotation so it slides instead of just braking
-    const hbKick=handbrake?1.7:1;
+    const hbKick=(handbrake&&!kartDrive)?1.7:1;
     const turnRate=this.steer*steerAuth*hbKick*clamp(Math.abs(vf)/8,0,1)*moveSign;
     this.heading+=turnRate*dt;
 
@@ -3633,7 +3631,7 @@ class CarSim{
     else if(this.surf==='kerb')grip=PHYS.gripKerb;
     else grip=PHYS.gripTarmac*T.grip;
     grip*=(window.weatherGrip||1);            // rain/snow make the surface slippery
-    if(handbrake)grip=Math.min(grip,PHYS.handbrakeGrip);
+    if(handbrake&&!kartDrive)grip=Math.min(grip,PHYS.handbrakeGrip);
     // snap oversteer when entering too hot: high speed + strong steer reduces grip
     const aggression=Math.abs(this.steer)*sp01;
     if(aggression>0.28 && !handbrake) grip*=lerp(1,0.20,(aggression-0.28)/0.72);
@@ -5839,18 +5837,18 @@ function raceUpdate(dt){
     else { rollZ += -sim.flipDir*0 + (sim.tip||0)*0.35*Math.sign(sim.steerVis||1); } // lean in corners
   }
   const _hop=(typeof RALLY!=='undefined'&&RALLY.active&&RALLY.airT>0)?Math.sin((1-RALLY.airT/RALLY.airDur)*Math.PI)*RALLY.airH:0;
-  // ---- weight transfer + suspension: makes the car feel alive ----
-  const _spd=sim.speed; sim._prevSpd=(sim._prevSpd==null)?_spd:sim._prevSpd;
-  const _accelG=(_spd-sim._prevSpd)/Math.max(dt,1e-3); sim._prevSpd=_spd;
-  const _sp01b=sim._sp01||0;
-  const pitch=clamp(-_accelG*0.0045,-0.10,0.10);                 // dive on brakes, squat on power
-  const roll=-(sim.steerVis||0)*_sp01b*0.11 - (sim.slip||0)*Math.sign(sim.steerVis||1)*0.12; // lean into slides
-  let susp=0;
-  if(TRACK.rally && _spd>4){ const r=t*0.021; susp=(Math.sin(r)+Math.sin(r*1.73+1.1))*0.07*clamp(_spd/30,0,1); }
+  // ---- weight transfer + suspension: makes the car feel alive (skip for karts) ----
+  let pitch=0, roll=0, susp=0;
+  if(!kartDrive){
+    const _spd=sim.speed; sim._prevSpd=(sim._prevSpd==null)?_spd:sim._prevSpd;
+    const _accelG=(_spd-sim._prevSpd)/Math.max(dt,1e-3); sim._prevSpd=_spd;
+    const _sp01b=sim._sp01||0;
+    pitch=clamp(-_accelG*0.0045,-0.10,0.10);
+    roll=-(sim.steerVis||0)*_sp01b*0.11 - (sim.slip||0)*Math.sign(sim.steerVis||1)*0.12;
+    if(TRACK.rally && _spd>4){ const r=t*0.021; susp=(Math.sin(r)+Math.sin(r*1.73+1.1))*0.07*clamp(_spd/30,0,1); }
+  }
   raceCar.root.position.y=elevAt(sim.x,sim.z,sim.seg) + sim.kerbLift*0.10 + vib + sim.bump*0.04 + liftY + _hop + susp;
-  // pitch: airborne ramp tilt, otherwise braking/accel weight transfer
   raceCar.root.rotation.x = _hop>0 ? -0.12*Math.cos((1-RALLY.airT/RALLY.airDur)*Math.PI) : pitch;
-  // body roll into the lift / corner lean (or tipping for the bubble car)
   raceCar.root.rotation.z=rollZ+roll;
   spinWheelsVisual(raceCar,sim.wheelSpin, sim.steerVis*0.5);
   layCarSkid(sim);
